@@ -49,29 +49,34 @@ test(
       await page.addScriptTag({ url: `${url}/nanopay.js` })
       const result = await page.evaluate(async () => {
         const nano = window.NanoPay
-        const wallet = await nano.createWallet()
+        const wallet = nano.createWallet().account()
         const hash = '1'.repeat(64)
-        const signature = nano.signBlock({ hash, secretKey: wallet.privateKey })
-        const work = await nano.computeWork(hash, {
-          workThreshold: 'f000000000000000',
+        const signature = nano.signHash(hash, wallet.privateKey)
+        const work = await nano.generateWork(hash, {
+          threshold: 'f000000000000000',
           maxIterations: 10000,
         })
         const esm = await import('/module.js')
         return {
-          addressValid: nano.checkAddress(wallet.address),
-          signatureValid: nano.verifyBlock({
+          addressValid: nano.isValidAddress(wallet.address),
+          signatureValid: nano.verifyHash({
             hash,
             signature,
             publicKey: wallet.publicKey,
           }),
-          workValid: nano.validateWork({
-            blockHash: hash,
+          workValid: nano.verifyWork({
+            root: hash,
             work,
             threshold: 'f000000000000000',
           }),
           amount: esm.nanoToRaw('1.25'),
-          esmAddressValid: esm.checkAddress(
-            esm.deriveWallet('0'.repeat(64)).address,
+          mnemonicAddress: (
+            await nano.walletFromMnemonic(
+              'company public remove bread fashion tortoise ahead shrimp onion prefer waste blade',
+            )
+          ).account().address,
+          esmAddressValid: esm.isValidAddress(
+            esm.accountFromSeed('0'.repeat(64)).address,
           ),
         }
       })
@@ -80,12 +85,14 @@ test(
         signatureValid: true,
         workValid: true,
         amount: '1250000000000000000000000000000',
+        mnemonicAddress:
+          'nano_16tfkg33dxndscjt3sdnzqjkdz4d5cxfmhbxf87zxycp8gtnzytqmcosi3zr',
         esmAddressValid: true,
       })
       const work = await page.evaluate(
         (url) =>
           new Promise((resolve, reject) => {
-            const source = `importScripts(${JSON.stringify(url + '/nanopay.js')}); NanoPay.computeWork('b9cb6b51b8eb869af085c4c03e7dc539943d0bdde13b21436b687c9c7ea56cb0', { workThreshold: NanoPay.LEGACY_WORK_THRESHOLD }).then(work => postMessage(work));`
+            const source = `importScripts(${JSON.stringify(url + '/nanopay.js')}); NanoPay.generateWork('b9cb6b51b8eb869af085c4c03e7dc539943d0bdde13b21436b687c9c7ea56cb0', { threshold: NanoPay.LEGACY_WORK_THRESHOLD }).then(work => postMessage(work));`
             const blob = URL.createObjectURL(
               new Blob([source], { type: 'text/javascript' }),
             )

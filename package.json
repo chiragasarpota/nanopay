@@ -1,7 +1,7 @@
 {
   "name": "nanopay",
   "version": "0.1.0",
-  "description": "Nano cryptocurrency toolkit for keys, addresses, exact unit conversion, block signing and proof of work.",
+  "description": "Nano toolkit with granular cryptography, mnemonic wallets, block building, proof of work, RPC and payment workflows.",
   "main": "./dist/index.cjs",
   "types": "./dist/types/index.d.ts",
   "exports": {
@@ -16,7 +16,97 @@
       }
     },
     "./browser": "./dist/nanopay.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./legacy": {
+      "import": {
+        "types": "./dist/types/legacy.d.ts",
+        "default": "./dist/legacy.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/legacy.d.ts",
+        "default": "./dist/legacy.cjs"
+      }
+    },
+    "./keys": {
+      "import": {
+        "types": "./dist/types/key-api.d.ts",
+        "default": "./dist/keys.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/key-api.d.ts",
+        "default": "./dist/keys.cjs"
+      }
+    },
+    "./blocks": {
+      "import": {
+        "types": "./dist/types/block-api.d.ts",
+        "default": "./dist/blocks.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/block-api.d.ts",
+        "default": "./dist/blocks.cjs"
+      }
+    },
+    "./work": {
+      "import": {
+        "types": "./dist/types/work-api.d.ts",
+        "default": "./dist/work.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/work-api.d.ts",
+        "default": "./dist/work.cjs"
+      }
+    },
+    "./rpc": {
+      "import": {
+        "types": "./dist/types/rpc-api.d.ts",
+        "default": "./dist/rpc.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/rpc-api.d.ts",
+        "default": "./dist/rpc.cjs"
+      }
+    },
+    "./amounts": {
+      "import": {
+        "types": "./dist/types/amount-api.d.ts",
+        "default": "./dist/amounts.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/amount-api.d.ts",
+        "default": "./dist/amounts.cjs"
+      }
+    },
+    "./mnemonic": {
+      "import": {
+        "types": "./dist/types/mnemonic.d.ts",
+        "default": "./dist/mnemonic.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/mnemonic.d.ts",
+        "default": "./dist/mnemonic.cjs"
+      }
+    },
+    "./payments": {
+      "import": {
+        "types": "./dist/types/payment-uri.d.ts",
+        "default": "./dist/payments.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/payment-uri.d.ts",
+        "default": "./dist/payments.cjs"
+      }
+    },
+    "./confirmations": {
+      "import": {
+        "types": "./dist/types/confirmations.d.ts",
+        "default": "./dist/confirmations.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/confirmations.d.ts",
+        "default": "./dist/confirmations.cjs"
+      }
+    }
   },
   "files": [
     "dist/",
@@ -75,15 +165,17 @@
     "release:bootstrap": "node scripts/publish-bootstrap.mjs"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
+    "@scure/bip39": "^2.4.0",
     "blakejs": "^1.2.1"
   },
   "devDependencies": {
-    "typescript": "^7.0.2",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.2",
     "esbuild": "^0.28.2",
     "expect": "^30.5.1",
-    "@types/node": "^22.20.2",
     "prettier": "^3.9.6",
-    "@playwright/test": "^1.63.0"
+    "typescript": "^7.0.2"
   },
   "contributors": [
     {

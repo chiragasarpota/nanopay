@@ -14,3 +14,7 @@ Dmitry Chestnykh, under the MIT license (included in dist/blakejs-LICENSE).
 
 The BLAKE2 C source by Samuel Neves is used under CC0 1.0.
 Its copyright notice and CC0 terms are in native/blake2/.
+
+Mnemonic-enabled bundles include @scure/bip39 and @noble/hashes by Paul Miller
+and contributors, under the MIT license. Their license texts are included in
+dist/scure-bip39-LICENSE and dist/noble-hashes-LICENSE.

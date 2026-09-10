@@ -1,60 +1,88 @@
-/*!
- * nanocurrency-js: A toolkit for the Nano cryptocurrency.
- * Copyright (c) 2019 Marvin ROGER <dev at marvinroger dot fr>
- * Licensed under GPL-3.0 (https://git.io/vAZsK)
- * Modified for nanopay by chiragasarpota, 2026-09-10. See CHANGELOG.md.
- */
-/**
- * @module nanopay
- */
-export { computeWork, ComputeWorkParams } from './accelerated.js'
+/* Copyright (c) 2026 chiragasarpota. GPL-3.0-only. */
 export {
-  Block,
-  BlockData,
-  BlockRepresentation,
-  ChangeBlockData,
-  CommonBlockData,
-  createBlock,
-  OpenBlockData,
-  ReceiveBlockData,
-  SendBlockData,
-} from './block.js'
-export {
-  checkAddress,
-  checkAmount,
-  checkHash,
-  checkIndex,
-  checkKey,
-  checkSeed,
-  checkSignature,
-  checkThreshold,
-  checkWork,
-} from './check.js'
-export { convert, ConvertParams, Unit } from './conversion.js'
-export { hashBlock, HashBlockParams } from './hash.js'
-export {
-  deriveAddress,
-  DeriveAddressParams,
-  derivePublicKey,
-  deriveSecretKey,
   generateSeed,
-} from './keys.js'
+  generatePrivateKey,
+  derivePrivateKey,
+  derivePublicKey,
+  publicKeyFromAddress,
+  addressFromPrivateKey,
+  normalizeAddress,
+  createAccount,
+  accountFromPrivateKey,
+  accountFromSeed,
+  createWallet,
+  walletFromSeed,
+  type Account,
+  type SeedWallet,
+} from './accounts.js'
+export { deriveAddress, type DeriveAddressParams } from './keys.js'
 export {
+  generateMnemonic,
+  isValidMnemonic,
+  entropyToMnemonic,
+  mnemonicToEntropy,
+  deriveMnemonicSeed,
+  deriveMnemonicPrivateKey,
+  walletFromMnemonic,
+  type MnemonicOptions,
+  type MnemonicWallet,
+} from './mnemonic.js'
+export {
+  checkAddress as isValidAddress,
+  checkAmount as isValidRawAmount,
+  checkHash as isValidHash,
+  checkIndex as isValidAccountIndex,
+  checkKey as isValidPrivateKey,
+  checkKey as isValidPublicKey,
+  checkSeed as isValidSeed,
+  checkSignature as isValidSignature,
+  checkThreshold as isValidWorkThreshold,
+  checkWork as isValidWorkFormat,
+} from './check.js'
+export { nanoToRaw, rawToNano } from './amounts.js'
+export { convert, Unit, type ConvertParams } from './conversion.js'
+export { hashBlock, type HashBlockParams } from './hash.js'
+export {
+  buildBlock,
+  buildSendBlock,
+  buildReceiveBlock,
+  buildChangeBlock,
+  signHash,
+  verifyHash,
   signBlock,
-  SignBlockParams,
   verifyBlock,
-  VerifyBlockParams,
-} from './signature.js'
-export { validateWork, ValidateWorkParams } from './work.js'
-
+  attachSignature,
+  getWorkRoot,
+  ZERO_HASH,
+  type UnsignedBlock,
+  type SignedBlock,
+  type Amount,
+  type BuildBlockParams,
+  type BuildTransactionParams,
+  type BuildSendParams,
+  type BuildReceiveParams,
+} from './state-blocks.js'
+export {
+  createSendBlock,
+  createReceiveBlock,
+  createChangeBlock,
+  type CreateSendParams,
+  type CreateReceiveParams,
+  type CreateChangeParams,
+  type CreatedBlock,
+} from './state-blocks.js'
+export {
+  generateWork,
+  verifyWork,
+  attachWork,
+  type WorkOptions,
+} from './proof-of-work.js'
 export {
   DEFAULT_WORK_THRESHOLD,
   SEND_WORK_THRESHOLD,
   RECEIVE_WORK_THRESHOLD,
   LEGACY_WORK_THRESHOLD,
 } from './work.js'
-export { nanoToRaw, rawToNano } from './amounts.js'
-export { createWallet, deriveWallet, type Wallet } from './wallet.js'
 export { createRpcClient, NanoRpcClient, NanoRpcError } from './rpc.js'
 export type {
   RpcClientOptions,
@@ -68,13 +96,36 @@ export type {
   BlockSubtype,
 } from './rpc.js'
 export {
-  createSendBlock,
-  createReceiveBlock,
-  createChangeBlock,
-} from './transactions.js'
-export type {
-  TransactionParams,
-  SendParams,
-  ReceiveParams,
-  ChangeParams,
-} from './transactions.js'
+  createClient,
+  NanoClient,
+  createSigner,
+  TransactionError,
+  ReceiveAllError,
+  type Signer,
+  type SigningAccount,
+  type WorkProvider,
+  type WorkRequest,
+  type ClientOptions,
+  type PreparedTransaction,
+  type TransactionResult,
+  type ReceiveAllResult,
+  type PrepareSendOptions,
+  type PrepareReceiveOptions,
+  type PrepareChangeOptions,
+  type SendOptions,
+  type ReceiveOptions,
+  type ChangeRepresentativeOptions,
+  type ReceiveAllOptions,
+  type ConfirmationOptions,
+} from './client.js'
+export {
+  createPaymentUri,
+  parsePaymentUri,
+  type PaymentRequest,
+  type CreatePaymentRequest,
+} from './payment-uri.js'
+export {
+  watchConfirmations,
+  type Confirmation,
+  type WatchConfirmationsOptions,
+} from './confirmations.js'

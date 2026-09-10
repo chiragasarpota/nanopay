@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import * as nano from '../dist/index.js'
+import * as nano from '../dist/legacy.js'
 
 const address = nano.deriveWallet('0'.repeat(64)).address
 const hash = 'a'.repeat(64)

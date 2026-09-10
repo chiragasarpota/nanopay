@@ -1,162 +1,201 @@
 # nanopay
 
-A Nano toolkit with local wallets, exact amount conversion, block signing, a typed RPC client, and WebAssembly proof of work. Built from [nanocurrency-js](https://github.com/marvinroger/nanocurrency-js) and maintained by chiragasarpota.
+Nano for JavaScript and TypeScript: create or recover accounts, send and receive funds, build blocks, sign locally, generate work, and query a node.
 
-**Release status:** `0.1.0` is prepared for publication. npm currently blocks publishing after the earlier package unpublish. The initial `0.0.1` bootstrap contains only version metadata.
+Use the client for complete workflows. Use the exported functions when you want control over each step. Both use the same Nano cryptography and block builders.
 
-Requires Node.js 22+ or a modern browser with Web Crypto, WebAssembly and native fetch. Works with ESM, CommonJS, TypeScript, and Web Workers.
+**Publication pending:** this checkout contains the unreleased `0.1.0` toolkit. npm's name-reuse cooldown currently prevents publication. The separately prepared `0.0.1` bootstrap contains version metadata only.
 
-## Start here
+[Complete API reference](docs/api.md) · [Runtime support](docs/runtimes.md) · [Performance](docs/performance.md) · [Release status](docs/releasing.md)
 
-Once published:
+## Install
+
+After publication:
 
 ```sh
 npm install nanopay
 ```
 
-To use this checkout now:
+To run this checkout now, use `npm ci && npm run build` and import from `./dist/index.js`. Node.js 22+, ESM, CommonJS, TypeScript and modern browsers are supported. A browser script bundle exposes `NanoPay`.
 
-```sh
-npm ci
-npm run build
-```
+## Create or recover accounts
 
 ```js
-import { createWallet, nanoToRaw, rawToNano } from 'nanopay'
-// In this checkout, import from './dist/index.js' instead.
+import {
+  createWallet,
+  walletFromSeed,
+  accountFromPrivateKey,
+  walletFromMnemonic,
+} from 'nanopay'
 
-const wallet = await createWallet()
-console.log(wallet.address)
+const wallet = createWallet()
+const first = wallet.account() // index 0
+const second = wallet.account(1)
+
+// Each account has { privateKey, publicKey, address }.
+console.log(first.address)
+
+const recovered = walletFromSeed(savedSeed).account(1)
+const imported = accountFromPrivateKey(savedPrivateKey)
+const mnemonicWallet = await walletFromMnemonic(savedWords, {
+  passphrase: savedPassphrase,
+})
+const mnemonicAccount = mnemonicWallet.account()
+```
+
+Back up `wallet.seed`, or your mnemonic **and its passphrase**, according to how the wallet was created. A private key controls one account; it cannot recover the wallet's seed or other accounts. Keep seeds and private keys out of logs and RPC requests.
+
+Native Nano hex seeds and BIP39 mnemonic seeds follow different derivation schemes. `walletFromSeed` uses Nano's BLAKE2b derivation. `walletFromMnemonic` follows BIP39 and the Nano SLIP-0010 path `m/44'/165'/index'`. It matches the [official Nano key-management vectors](https://docs.nano.org/integration-guides/key-management/).
+
+## Send, receive, and confirm
+
+```js
+import { createClient, walletFromSeed } from 'nanopay'
+
+const client = createClient({ rpcUrl: 'http://127.0.0.1:7076' })
+const account = walletFromSeed(savedSeed).account()
+
+const balance = await client.getBalance(account.address)
+console.log(balance.balance) // confirmed Nano, exact decimal string
+
+const sent = await client.send({
+  account,
+  to: recipientAddress,
+  amount: '0.125', // Nano; alternatively use amountRaw: '1'
+})
+await client.waitForConfirmation(sent.hash)
+
+const received = await client.receiveAll({
+  account,
+  representative: chosenRepresentative,
+  maxBlocks: 100,
+})
+for (const transaction of received.transactions) {
+  await client.waitForConfirmation(transaction.hash)
+}
+
+await client.changeRepresentative({
+  account,
+  representative: chosenRepresentative,
+})
+```
+
+The client reads account state, builds a block, signs locally, requests work, verifies it, and submits once. Choose a representative for the first receive; existing accounts keep theirs unless you supply another. `receive({ account, hash })` receives one confirmed incoming send. `receiveAll` processes a bounded snapshot and reports `hasMore` when that snapshot contains additional blocks.
+
+Writes to the same account queue inside a client instance. Different accounts and independent reads run concurrently. Coordinate writers yourself when using multiple clients, processes, devices, or the granular prepare/publish methods.
+
+`status: 'submitted'` means the node accepted the block. Use `waitForConfirmation` before treating it as settled. If submission fails, `TransactionError.transaction` retains the exact hash and signed block; inspect that hash before trying again. `ReceiveAllError.completed` preserves earlier successful submissions, and its `cause` identifies the failed step. Writes are never retried automatically.
+
+## Full control, one step at a time
+
+```js
+import {
+  generateSeed,
+  derivePrivateKey,
+  derivePublicKey,
+  deriveAddress,
+  buildSendBlock,
+  hashBlock,
+  signHash,
+  attachSignature,
+  getWorkRoot,
+  attachWork,
+  createRpcClient,
+} from 'nanopay'
+
+const seed = generateSeed()
+const privateKey = derivePrivateKey(seed, 0)
+const publicKey = derivePublicKey(privateKey)
+const address = deriveAddress(publicKey)
+
+// Use a funded account's state here; a fresh account cannot send yet.
+const rpc = createRpcClient('http://127.0.0.1:7076')
+const state = await rpc.getAccountInfo(address)
+if (!state) throw new Error('Receive funds into this account first')
+
+const unsigned = buildSendBlock({
+  account: address,
+  previous: state.frontier,
+  representative: state.representative,
+  balanceRaw: state.balanceRaw,
+  to: recipientAddress,
+  amountRaw: '1',
+})
+const hash = hashBlock(unsigned)
+const signature = signHash(hash, privateKey)
+const signed = attachSignature(unsigned, signature)
+const work = await rpc.generateWork(getWorkRoot(signed))
+const block = attachWork(signed, work)
+await rpc.publishBlock(block, 'send')
+```
+
+`build*` functions need no private keys. `signBlock(unsigned, privateKey)` combines hashing and signing. `createSendBlock`, `createReceiveBlock` and `createChangeBlock` combine building and signing, returning `{ hash, block }`. None of those functions contacts a node. `client.prepareSend`, `prepareReceive` and `prepareChangeRepresentative` add ledger reads and return unsigned transactions for your own signing flow.
+
+External signers implement `{ publicKey, sign(hash) }`; pass that object as `account`. Signatures must use **Nano's Ed25519-BLAKE2b**, not standard Ed25519-SHA512. Work providers implement `work({ root, threshold, signal })`. You can use local WASM, a GPU service, or a separate work node. See [signer and work examples](docs/api.md#custom-signing-and-work).
+
+## Exact amounts
+
+```js
+import { nanoToRaw, rawToNano } from 'nanopay/amounts'
 
 nanoToRaw('1.25') // '1250000000000000000000000000000'
 rawToNano('1') // '0.000000000000000000000000000001'
 ```
 
-CommonJS also works: `const { createWallet } = require('nanopay')`.
+Amounts use strings, never floating-point numbers. `amount` means Nano; `amountRaw` and `balanceRaw` mean raw. One Nano is `10^30` raw. Fractional raw and uint128 overflow are rejected. General `convert` and `Unit` remain available; the historical `Unit.nano` means `10^24` raw, so use `nanoToRaw` for ordinary Nano amounts.
 
-Keep `wallet.seed` and `wallet.privateKey` private. All key derivation and signing happen locally.
-
-## Functions
-
-| Function                                        | Purpose                                                                                            |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `createWallet()`                                | Generate a fresh seed and its first account.                                                       |
-| `deriveWallet(seed, index = 0)`                 | Recover an account; returns seed, index, privateKey, publicKey, address.                           |
-| `nanoToRaw(amount)`                             | Convert a Nano decimal string to an exact raw string. Rejects fractional raw and uint128 overflow. |
-| `rawToNano(raw)`                                | Convert a raw string or bigint to a Nano decimal string.                                           |
-| `checkAddress(address)`                         | Validate address format and checksum. Accepts `nano_` and `xrb_`.                                  |
-| `createSendBlock(params)`                       | Subtract a Nano amount and sign a send block locally.                                              |
-| `createReceiveBlock(params)`                    | Add incoming raw and sign a receive or open block locally.                                         |
-| `createChangeBlock(params)`                     | Sign a representative change with the same balance.                                                |
-| `createRpcClient(url, options?)`                | Connect to your chosen Nano node.                                                                  |
-| `computeWork(root, options?)`                   | Generate PoW locally in WebAssembly.                                                               |
-| `validateWork({ blockHash, work, threshold? })` | Check a PoW nonce.                                                                                 |
-
-Pass amounts as strings. JavaScript numbers cannot represent all Nano balances exactly. One Nano is `10^30` raw; balances fit an unsigned 128-bit integer.
-
-## Read from a Nano node
+## Payment links and live confirmations
 
 ```js
-import { createRpcClient } from 'nanopay'
+import { createPaymentUri, parsePaymentUri, watchConfirmations } from 'nanopay'
 
-const rpc = createRpcClient('http://127.0.0.1:7076', {
-  timeoutMs: 15_000,
+const uri = createPaymentUri({
+  address: account.address,
+  amount: '1.25',
+  label: 'Coffee',
 })
+const request = parsePaymentUri(uri)
 
-const balance = await rpc.getBalance(wallet.address)
-console.log(balance.balance) // confirmed Nano, as a decimal string
-console.log(balance.balanceRaw) // same amount in raw
-console.log(balance.receivable) // confirmed incoming funds awaiting receipt
-
-const incoming = await rpc.getReceivable(wallet.address, { count: 100 })
-const history = await rpc.getHistory(wallet.address, { count: 20 })
+for await (const event of watchConfirmations('ws://127.0.0.1:7078', {
+  accounts: [account.address],
+  signal: controller.signal,
+})) {
+  console.log(event.hash, event.amount)
+}
 ```
 
-| Method                                   | Result / behavior                                                                                                            |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `getBalance(address)`                    | Confirmed balance and receivable funds, each in Nano and raw.                                                                |
-| `getAccountInfo(address)`                | Atomic frontier, current balance and representative, with separate confirmed fields. Returns `null` for an unopened account. |
-| `getReceivable(address, { count? })`     | Confirmed incoming blocks as `{ hash, amount, amountRaw, source }`. Default limit: 100.                                      |
-| `getHistory(address, { count?, head? })` | `{ entries, previous?, next? }`. History may include unconfirmed entries.                                                    |
-| `getBlock(hash)`                         | Block contents, amounts, and an explicit `confirmed` boolean.                                                                |
-| `generateWork(root, { threshold? })`     | Request work from your node/work peers, then validate it locally.                                                            |
-| `publishBlock(block, subtype)`           | Verify the signature and work, then submit once. Returns the block hash.                                                     |
-| `request(action, params?)`               | Access any additional documented Nano RPC directly.                                                                          |
+Payment URIs encode raw as required by Nano. WebSocket notifications can repeat; deduplicate by hash. A disconnect, malformed message, or full buffer raises an error. Reconcile history and receivables through RPC after reconnecting. This stream has no automatic reconnect or persistent payment accounting.
 
-All methods accept `signal` in their options. Client options also accept `headers` and a custom `fetch`. There are no automatic retries, response caches, or global endpoint settings. Node failures throw `NanoRpcError` with `action` and, when available, HTTP `status`. Aborts and timeouts use `AbortError` and `TimeoutError`.
+## Small imports and local work
 
-The client follows the [official Nano RPC protocol](https://docs.nano.org/commands/rpc-protocol/). It uses `receivable`, confirmed balance options, and structured JSON blocks with explicit transaction subtypes. A successful publish is **not confirmation**; check `getBlock(hash).confirmed` before treating a payment as settled.
-
-## Build a send
-
-`balanceRaw` means the **current** balance. `amount` means how much Nano to send. The helper computes the resulting balance.
+Focused entry points avoid loading unrelated modules:
 
 ```js
-import { createSendBlock } from 'nanopay'
+import { derivePrivateKey, deriveAddress } from 'nanopay/keys'
+import { buildReceiveBlock, signBlock } from 'nanopay/blocks'
+import { generateWork, RECEIVE_WORK_THRESHOLD } from 'nanopay/work'
 
-// wallet and rpc are from the examples above; recipient is a Nano address.
-const account = await rpc.getAccountInfo(wallet.address)
-if (!account) throw new Error('Account has no received funds')
-
-const work = await rpc.generateWork(account.frontier)
-const { block } = createSendBlock({
-  privateKey: wallet.privateKey,
-  previous: account.frontier,
-  representative: account.representative,
-  balanceRaw: account.balanceRaw,
-  to: recipient,
-  amount: '0.01',
-  work,
-})
-
-const hash = await rpc.publishBlock(block, 'send')
-```
-
-Serialize transactions for each account and fetch a fresh account snapshot before constructing the next block; parallel writes against the same frontier can create a fork. Independent reads and different accounts can run concurrently.
-
-For incoming funds, pass `sourceHash` and `amountRaw` from `getReceivable()` to `createReceiveBlock()`. Set `previous: null` and `balanceRaw: '0'` to open an account; supply the representative you choose. For an existing account, pass its current frontier, balance, and representative. Publish with subtype `open` or `receive`, respectively.
-
-## Proof of work
-
-```js
-import { computeWork, RECEIVE_WORK_THRESHOLD } from 'nanopay'
-
-const work = await computeWork(root, {
-  workThreshold: RECEIVE_WORK_THRESHOLD,
+const work = await generateWork(root, {
+  threshold: RECEIVE_WORK_THRESHOLD,
   signal: AbortSignal.timeout(30_000),
   maxIterations: 10_000_000,
 })
-// work is a 16-character hex nonce, or null if the attempt limit is exhausted.
+// A 16-character hex nonce, or null when the attempt range is exhausted.
 ```
 
-The root is the previous block hash. For an open block, use the account public key. The defaults match [Nano's work thresholds](https://docs.nano.org/integration-guides/work-generation/#difficulty-thresholds):
+Also available: `nanopay/amounts`, `/mnemonic`, `/rpc`, `/payments`, and `/confirmations`. Each supports ESM, CommonJS, and TypeScript. The keys entry point contains neither WASM nor the mnemonic word list.
 
-| Constant                                         | Threshold          | Use                       |
-| ------------------------------------------------ | ------------------ | ------------------------- |
-| `DEFAULT_WORK_THRESHOLD` / `SEND_WORK_THRESHOLD` | `fffffff800000000` | Send and change           |
-| `RECEIVE_WORK_THRESHOLD`                         | `fffffe0000000000` | Receive and open          |
-| `LEGACY_WORK_THRESHOLD`                          | `ffffffc000000000` | Historical epoch 1 blocks |
+The WASM engine compiles once per realm, isolates concurrent calls, and yields between batches. `workerIndex` and `workerCount` partition the nonce space; run those calls in separate Workers to use multiple cores. They do not create Workers. Mainnet work is probabilistic; use a GPU work service for sustained workloads. See [measured performance and tradeoffs](docs/performance.md).
 
-The WASM engine reuses buffers inside each batch and compiles once per JavaScript realm. Separate requests have separate memory. It yields every 16,384 attempts by default; `batchSize` trades yield overhead against responsiveness. `workerIndex` and `workerCount` divide the nonce space into disjoint ranges. Run those calls in separate Web Workers or Node worker threads to use multiple cores; the options do not spawn workers themselves.
+## Scope and compatibility
 
-For sustained mainnet generation, use `rpc.generateWork()` with a GPU-backed work server. Local CPU throughput does not imply a fixed completion time because finding work is probabilistic.
+The toolkit covers local accounts, native and mnemonic derivation, state blocks, signing, work, ledger reads, send/receive/change workflows, confirmation tracking and payment links. `client.request(action, params)` and `rpc.request(...)` expose every additional [Nano RPC command](https://docs.nano.org/commands/rpc-protocol/) supported and enabled by your node.
 
-## Browser
+It does not run a consensus node, choose a representative, persist or encrypt secrets, manage exchange accounting, or provide a hardware-device transport. External signer hooks allow you to supply your own transport. New blocks use state format; RPC block reads also support historical block contents.
 
-Use normal ESM imports with your bundler. For a script tag, serve `dist/nanopay.js` and use the `NanoPay` global. The WASM bytes are embedded; no separate WASM download or Docker installation is required. Browser RPC endpoints must allow your origin through CORS.
+The original upstream function names and call signatures are preserved under `nanopay/legacy`, including `deriveSecretKey` and the hash-based `signBlock({ hash, secretKey })`. Main imports use `privateKey` consistently and distinguish signing a hash from signing a block. The old nanopay payment-wrapper API is replaced.
 
-## Lower-level toolkit
-
-The upstream building blocks remain available: `generateSeed`, `deriveSecretKey`, `derivePublicKey`, `deriveAddress`, `hashBlock`, `signBlock`, `verifyBlock`, `createBlock`, `convert`, `Unit`, and the `check*` validators. Public functions include TypeScript declarations and parameter documentation.
-
-Changes from `nanocurrency@2.5.0`:
-
-- Addresses default to `nano_`. Use `deriveAddress(key, { useNanoPrefix: false })` for `xrb_`.
-- Work defaults to the current send/change threshold; pass `LEGACY_WORK_THRESHOLD` when checking old vectors.
-- `convert()` is exact and rejects fractional or overflowing hex balances. For compatibility, `Unit.nano` still means the legacy `10^24` raw unit; use `nanoToRaw()` for ordinary Nano amounts.
-- The old nanopay payment-wrapper API is replaced. This package does not retain its global `init()` or automatic pending-receive loop.
-
-## Development
+## Development and license
 
 ```sh
 npm ci
@@ -164,12 +203,6 @@ npm run check
 npm run bench
 ```
 
-`npm run check` runs type checking, Node tests, browser/worker tests, formatting, and a clean npm installation check. Install a test browser with `npx playwright install chromium` if Chrome is not installed.
+Checks cover protocol vectors, workflows, browser/Worker execution, formatting, and installation into a clean npm project. Install a browser with `npx playwright install chromium` if Chrome is unavailable. `npm run build:wasm` rebuilds the checked-in binary with LLVM clang and wasm-ld; ordinary builds use the existing binary.
 
-`npm run build:wasm` rebuilds the checked-in binary using LLVM clang and wasm-ld. Set `NANOPAY_CLANG` and `NANOPAY_WASM_LD` to override compiler paths. Ordinary builds use the checked-in WASM binary. The C source, TypeScript source, and build scripts ship in the npm package.
-
-See [benchmarks](docs/performance.md) and [release notes](CHANGELOG.md).
-
-## License and origin
-
-GPL-3.0-only. The upstream copyright notices are preserved. See [LICENSE](LICENSE) and [NOTICE](NOTICE). This is an independent fork; it does not imply endorsement by the upstream author or Nano Foundation.
+GPL-3.0-only. Based on [nanocurrency-js](https://github.com/marvinroger/nanocurrency-js) by Marvin ROGER. Source, build scripts, original notices, and bundled dependency licenses ship with the package. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [CHANGELOG](CHANGELOG.md).

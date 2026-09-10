@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import * as nano from '../dist/index.js'
+import * as nano from '../dist/legacy.js'
 const wallet = nano.deriveWallet('0'.repeat(64))
 const params = {
   privateKey: wallet.privateKey,

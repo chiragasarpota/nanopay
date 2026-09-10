@@ -28,6 +28,38 @@ const options = {
   },
 }
 await Promise.all([
+  ...Object.entries({
+    keys: 'key-api',
+    blocks: 'block-api',
+    work: 'work-api',
+    rpc: 'rpc-api',
+    amounts: 'amount-api',
+    mnemonic: 'mnemonic',
+    payments: 'payment-uri',
+    confirmations: 'confirmations',
+  }).flatMap(([name, entry]) =>
+    ['esm', 'cjs'].map((format) =>
+      build({
+        ...options,
+        entryPoints: ['src/' + entry + '.ts'],
+        platform: format === 'cjs' ? 'node' : 'neutral',
+        format,
+        external: ['blakejs'],
+        outfile: 'dist/' + name + '.' + (format === 'esm' ? 'js' : 'cjs'),
+      }),
+    ),
+  ),
+
+  ...['esm', 'cjs'].map((format) =>
+    build({
+      ...options,
+      entryPoints: ['src/legacy.ts'],
+      platform: format === 'cjs' ? 'node' : 'neutral',
+      format,
+      external: ['blakejs'],
+      outfile: 'dist/legacy.' + (format === 'esm' ? 'js' : 'cjs'),
+    }),
+  ),
   build({
     ...options,
     platform: 'neutral',
@@ -55,7 +87,7 @@ await Promise.all([
     platform: 'node',
     format: 'esm',
     entryPoints: ['src/cli.ts'],
-    external: ['./index.js'],
+    external: ['./legacy.js'],
     outfile: 'dist/cli.js',
   }),
 ])
@@ -74,3 +106,13 @@ cpSync(
   'dist/blakejs-LICENSE',
 )
 chmodSync('dist/cli.js', 0o755)
+
+for (const [name, filename] of [
+  ['@scure/bip39', 'scure-bip39'],
+  ['@noble/hashes/sha2.js', 'noble-hashes'],
+]) {
+  cpSync(
+    join(dirname(require.resolve(name)), 'LICENSE'),
+    'dist/' + filename + '-LICENSE',
+  )
+}

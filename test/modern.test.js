@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import * as nano from '../dist/index.js'
+import * as nano from '../dist/legacy.js'
 
 const seed = '0'.repeat(64)
 const root = 'b9cb6b51b8eb869af085c4c03e7dc539943d0bdde13b21436b687c9c7ea56cb0'

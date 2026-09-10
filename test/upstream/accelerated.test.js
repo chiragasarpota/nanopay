@@ -4,7 +4,7 @@ import { expect } from 'expect'
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 
-const nano = require('../../dist/index.cjs')
+const nano = require('../../dist/legacy.cjs')
 const { INVALID_HASHES } = require('./data/invalid.cjs')
 
 const VALID_WORK = {

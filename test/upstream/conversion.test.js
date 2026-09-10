@@ -4,7 +4,7 @@ import { expect } from 'expect'
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 
-const nano = require('../../dist/index.cjs')
+const nano = require('../../dist/legacy.cjs')
 const INVALID_NUMBERS = [12, '.01', '0.1.', '0..1', 'z']
 const INVALID_UNITS = [12, '', 'nona', 'Kanano']
 

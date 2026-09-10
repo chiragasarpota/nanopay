@@ -3,7 +3,7 @@ import { describe, test } from 'node:test'
 import { expect } from 'expect'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import * as nano from '../dist/index.js'
+import * as nano from '../dist/legacy.js'
 const run = promisify(execFile)
 const cli = async (args) => {
   try {

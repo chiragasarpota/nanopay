@@ -2,7 +2,7 @@ import { performance } from 'node:perf_hooks'
 import { cpus, platform, arch } from 'node:os'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import * as nano from '../dist/index.js'
+import * as nano from '../dist/legacy.js'
 
 const require = createRequire(import.meta.url)
 // Optional absolute path to an independently installed nanocurrency@2.5.0.

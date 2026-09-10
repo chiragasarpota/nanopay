@@ -20,6 +20,10 @@ try {
   for (const file of [
     'dist/index.js',
     'dist/index.cjs',
+    'dist/legacy.js',
+    'dist/legacy.cjs',
+    'dist/scure-bip39-LICENSE',
+    'dist/noble-hashes-LICENSE',
     'dist/cli.js',
     'dist/types/index.d.ts',
     'dist/types-cjs/package.json',
@@ -57,13 +61,55 @@ try {
     const file = join(temp, `consumer.${extension}`)
     writeFileSync(
       file,
-      `${loader}\nconst wallet = nano.deriveWallet('0'.repeat(64)); if (!nano.checkAddress(wallet.address) || nano.nanoToRaw('1') !== '1000000000000000000000000000000') throw new Error('Invalid package result'); nano.computeWork('0'.repeat(64), { workThreshold: '0000000000000000', maxIterations: 1 }).then(work => { if(work !== '0000000000000000') throw new Error('WASM missing'); });\n`,
+      `${loader}\nconst wallet = nano.accountFromSeed('0'.repeat(64)); if (!nano.isValidAddress(wallet.address) || nano.nanoToRaw('1') !== '1000000000000000000000000000000') throw new Error('Invalid package result'); nano.generateWork('0'.repeat(64), { threshold: '0000000000000000', maxIterations: 1 }).then(work => { if(work !== '0000000000000000') throw new Error('WASM missing'); });\n`,
     )
     execFileSync(process.execPath, [file], { cwd: temp, stdio: 'pipe' })
+    const subpaths = [
+      'keys',
+      'blocks',
+      'work',
+      'rpc',
+      'amounts',
+      'mnemonic',
+      'payments',
+      'confirmations',
+      'legacy',
+    ]
+    const imports = subpaths
+      .map((name, index) =>
+        extension === 'mjs'
+          ? `import * as part${index} from 'nanopay/${name}';`
+          : `const part${index} = require('nanopay/${name}');`,
+      )
+      .join('\n')
+    const subpathFile = join(temp, `subpaths.${extension}`)
+    writeFileSync(
+      subpathFile,
+      imports +
+        `\nif (part0.derivePrivateKey('0'.repeat(64)) !== part8.deriveSecretKey('0'.repeat(64), 0)) throw new Error('Key entry point mismatch'); if (!part5.isValidMnemonic(part5.generateMnemonic())) throw new Error('Mnemonic entry point failure'); if (!part2.verifyWork({root:'0'.repeat(64),work:'0'.repeat(16),threshold:'0'.repeat(16)})) throw new Error('Work entry point failure');`,
+    )
+    execFileSync(process.execPath, [subpathFile], { cwd: temp, stdio: 'pipe' })
   }
-  const ts = `import { deriveWallet, nanoToRaw, createRpcClient, createSendBlock, type Wallet } from 'nanopay';\nconst wallet: Wallet = deriveWallet('0'.repeat(64));\nconst amount: string = nanoToRaw('1.25');\ncreateRpcClient('https://node.example').getBalance(wallet.address).then(balance => balance.balanceRaw);\ncreateSendBlock({ privateKey: wallet.privateKey, representative: wallet.address, balanceRaw: amount, previous: '1'.repeat(64), to: wallet.address, amount: '1' });\n`
-  writeFileSync(join(temp, 'consumer.mts'), ts)
-  writeFileSync(join(temp, 'consumer.cts'), ts)
+  const ts = `import { accountFromSeed, nanoToRaw, createRpcClient, createSendBlock, type Account } from 'nanopay';\nconst wallet: Account = accountFromSeed('0'.repeat(64));\nconst amount: string = nanoToRaw('1.25');\ncreateRpcClient('https://node.example').getBalance(wallet.address).then(balance => balance.balanceRaw);\ncreateSendBlock({ privateKey: wallet.privateKey, representative: wallet.address, balanceRaw: amount, previous: '1'.repeat(64), to: wallet.address, amount: '1' });\n`
+  const typedWorkflows = `
+import { createClient, createWallet, walletFromMnemonic, type Signer, buildSendBlock, signBlock, attachSignature, hashBlock, signHash } from 'nanopay';
+import { derivePrivateKey } from 'nanopay/keys';
+import { generateWork } from 'nanopay/work';
+import { createClient as focusedClient } from 'nanopay/rpc';
+const local = createWallet().account(1);
+const external: Signer = { publicKey: local.publicKey, sign: hash => signHash(hash, local.privateKey) };
+const client = createClient({ rpcUrl: 'https://node.example', work: async ({ root, threshold, signal }) => { const work = await generateWork(root, { threshold, signal }); if (work === null) throw new Error('exhausted'); return work } });
+client.send({ account: external, to: local.address, amountRaw: '1' });
+client.receiveAll({ account: local, representative: local.address });
+client.prepareSend({ account: local.address, to: local.address, amount: '1' });
+walletFromMnemonic('example').then(wallet => wallet.account(1));
+// @ts-expect-error: amount and amountRaw are mutually exclusive.
+client.send({ account: local, to: local.address, amount: '1', amountRaw: '1' });
+// @ts-expect-error: sending requires an explicit amount.
+client.send({ account: local, to: local.address });
+`
+  writeFileSync(join(temp, 'consumer.mts'), ts + typedWorkflows)
+  writeFileSync(join(temp, 'consumer.cts'), ts + typedWorkflows)
   writeFileSync(
     join(temp, 'tsconfig.json'),
     JSON.stringify({
@@ -87,6 +133,18 @@ try {
     process.execPath,
     [tsc, '--project', join(temp, 'tsconfig.json')],
     { cwd: temp, stdio: 'pipe' },
+  )
+  assert.ok(
+    !readFileSync(
+      join(temp, 'node_modules/nanopay/dist/keys.js'),
+      'utf8',
+    ).includes('WebAssembly'),
+  )
+  assert.ok(
+    !readFileSync(
+      join(temp, 'node_modules/nanopay/dist/keys.js'),
+      'utf8',
+    ).includes('abandon'),
   )
   const cli = resolve(temp, 'node_modules/nanopay/dist/cli.js')
   assert.equal(

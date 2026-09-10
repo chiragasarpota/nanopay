@@ -167,6 +167,7 @@ export class NanoRpcClient {
     params: Record<string, unknown> = {},
     options: RequestOptions = {},
   ): Promise<T> {
+    options = { ...options }
     if (typeof action !== 'string' || !action.trim())
       throw new Error('RPC action is required')
     options.signal?.throwIfAborted()
@@ -241,6 +242,65 @@ export class NanoRpcClient {
       receivable: rawToNano(receivableRaw),
       receivableRaw,
     }
+  }
+
+  /** Batch confirmed balances in one request. Requires Nano node v25+. */
+  async getBalances(
+    accounts: string[],
+    options: RequestOptions = {},
+  ): Promise<Record<string, AccountBalance>> {
+    accounts.forEach(requireAddress)
+    if (!accounts.length) return {}
+    const action = 'accounts_balances'
+    const data = await this.request(
+      action,
+      { accounts: [...new Set(accounts)], include_only_confirmed: true },
+      options,
+    )
+    if (data.errors && Object.keys(record(data.errors, action)).length)
+      throw new NanoRpcError(
+        'One or more accounts failed in the batch response',
+        action,
+      )
+    const balances = record(data.balances, action)
+    return Object.fromEntries(
+      accounts.map((account) => {
+        const value = record(balances[account], action)
+        const balanceRaw = rawField(value.balance, action)
+        const receivableRaw = rawField(
+          value.receivable ?? value.pending,
+          action,
+        )
+        return [
+          account,
+          {
+            balanceRaw,
+            balance: rawToNano(balanceRaw),
+            receivableRaw,
+            receivable: rawToNano(receivableRaw),
+          },
+        ]
+      }),
+    )
+  }
+
+  /** Whether a confirmed send still needs receiving. */
+  async isReceivable(
+    hash: string,
+    options: RequestOptions = {},
+  ): Promise<boolean> {
+    if (!checkHash(hash)) throw new Error('Hash is not valid')
+    const data = await this.request(
+      'receivable_exists',
+      { hash, include_only_confirmed: true },
+      options,
+    )
+    if (data.exists !== '0' && data.exists !== '1')
+      throw new NanoRpcError(
+        'Invalid RPC receivable status',
+        'receivable_exists',
+      )
+    return data.exists === '1'
   }
 
   /** Read an atomic account snapshot. Returns null for an unopened account. */

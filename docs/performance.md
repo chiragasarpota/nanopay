@@ -13,7 +13,7 @@ Measured on 2026-09-10 with Node.js 22.16.0 on an Apple M4 Pro (macOS arm64). Th
 | verifyBlock                                       |             491 |              490 |     1× |
 | WASM nonce attempts (including event-loop yields) |       4,894,464 |                — |      — |
 
-Signing and verification performance are essentially unchanged; the upstream curve arithmetic is preserved. Amount conversion, byte handling, and block hashing show the measured improvements above. The conversion rows exercise the general convert() function; nanoToRaw() adds a uint128 balance check. Work generation is measured over one million attempted nonces, including the default event-loop yields, after WASM compilation. It is not a comparison against upstream PoW and does not measure mainnet confirmation latency.
+The named deriveSecretKey/signBlock/verifyBlock rows measure the preserved legacy primitives (canonical derivePrivateKey/signHash/verifyHash call these). They do not measure full high-level transaction workflows. Signing and verification performance are essentially unchanged; the upstream curve arithmetic is preserved. Amount conversion, byte handling, and block hashing show the measured improvements above. The conversion rows exercise the general convert() function; nanoToRaw() adds a uint128 balance check. Work generation is measured over one million attempted nonces, including the default event-loop yields, after WASM compilation. It is not a comparison against upstream PoW and does not measure mainnet confirmation latency.
 
 ## Reproduce
 
@@ -29,4 +29,8 @@ Exact conversions move the decimal point in a string instead of repeatedly divid
 
 The default work batch is 16,384 attempts. Larger batches reduce scheduling overhead and increase the maximum time before cancellation can run. The maximum batch is 1,048,576 attempts. Place long-running generation in a Worker to keep the UI/main thread responsive, and use a GPU-backed work server for sustained production work.
 
-RPC methods use native fetch, with no shared request queue or response cache. Independent calls can run in parallel. Request latency is determined mainly by the node and network; no local microbenchmark can establish that latency for a caller's deployment.
+RPC reads use native fetch with no shared request queue or response cache. High-level writes serialize per account within a client instance. Independent calls can run in parallel. Request latency is determined mainly by the node and network; no local microbenchmark can establish that latency for a caller's deployment.
+
+## API composition
+
+Focused package imports keep the mnemonic word list and local WASM out of keys-only consumers. Mnemonic wallets run native Web Crypto PBKDF2 once and prederive the common path; selecting more accounts requires only hardened HMAC derivation and Nano public-key expansion. `getBalances` uses one node request, and `receiveAll` reuses the account frontier and balance returned by its own preceding submissions. These choices reduce loading and repeated work; the microbenchmarks above do not measure their end-to-end latency.

@@ -4,7 +4,9 @@
  * Reimplemented for nanopay by chiragasarpota, 2026-09-10.
  */
 import { parseArgs } from 'node:util'
-import * as nano from './index.js'
+import * as nano from './legacy.js'
+import { generatePrivateKey } from './accounts.js'
+import { generateMnemonic } from './mnemonic.js'
 
 declare const __NANOPAY_VERSION__: string
 
@@ -12,7 +14,10 @@ const HELP = `nanopay <command> <item> [options]
 
   generate seed
   generate wallet
-  derive secret --from <seed> [--index 0]
+  generate private
+  generate mnemonic
+  derive private --from <seed> [--index 0]
+  derive secret --from <seed> [--index 0] (legacy alias)
   derive public --from <private-key-or-address>
   derive address --from <public-key> [--legacy]
   check <seed|index|amount|hash|key|address|work|signature|threshold> --candidate <value>
@@ -78,9 +83,16 @@ async function main(): Promise<void> {
     case 'generate seed':
       result = await nano.generateSeed()
       break
+    case 'generate private':
+      result = generatePrivateKey()
+      break
+    case 'generate mnemonic':
+      result = generateMnemonic()
+      break
     case 'generate wallet':
       result = await nano.createWallet()
       break
+    case 'derive private':
     case 'derive secret':
       result = nano.deriveSecretKey(required('from'), Number(values.index ?? 0))
       break
