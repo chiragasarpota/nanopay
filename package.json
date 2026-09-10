@@ -1,0 +1,40 @@
+{
+  "name": "nanopay",
+  "version": "0.0.1",
+  "description": "Nano cryptocurrency toolkit. Initial package setup; toolkit implementation follows in the next release.",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "author": "chiragasarpota",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chiragasarpota/nanopay.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chiragasarpota/nanopay/issues"
+  },
+  "homepage": "https://github.com/chiragasarpota/nanopay#readme",
+  "keywords": [
+    "nano",
+    "cryptocurrency",
+    "toolkit"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
