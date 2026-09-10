@@ -1,0 +1,16 @@
+nanopay is derived from nanocurrency-js by Marvin ROGER and contributors.
+Upstream: https://github.com/marvinroger/nanocurrency-js
+Upstream commit: 5a0d9957c50f00a848476b20efc9e06335ba5209
+Upstream copyright: Copyright (c) 2019 Marvin ROGER <dev at marvinroger dot fr>
+License: GNU General Public License, version 3 (GPL-3.0-only).
+
+Modified by chiragasarpota on 2026-09-10. See CHANGELOG.md for changes.
+The source code and build script are included in the npm package.
+
+The upstream Nano signing implementation in src/nacl.ts is adapted from
+TweetNaCl.js (https://github.com/dchest/tweetnacl-js), released into the public domain.
+Bundled browser distributions also contain blakejs, Copyright (c) 2015-2017
+Dmitry Chestnykh, under the MIT license (included in dist/blakejs-LICENSE).
+
+The BLAKE2 C source by Samuel Neves is used under CC0 1.0.
+Its copyright notice and CC0 terms are in native/blake2/.

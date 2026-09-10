@@ -1,0 +1,54 @@
+{
+  "node": "v22.16.0",
+  "platform": "darwin arm64",
+  "cpu": "Apple M4 Pro",
+  "method": "Median of five warm samples; same machine and inputs. RPC latency depends on your node/network.",
+  "results": [
+    {
+      "operation": "Nano → raw",
+      "opsPerSecond": 9203866,
+      "upstreamOpsPerSecond": 142730,
+      "speedup": 64.48
+    },
+    {
+      "operation": "raw → Nano",
+      "opsPerSecond": 6441972,
+      "upstreamOpsPerSecond": 30458,
+      "speedup": 211.5
+    },
+    {
+      "operation": "deriveSecretKey",
+      "opsPerSecond": 421014,
+      "upstreamOpsPerSecond": 295757,
+      "speedup": 1.42
+    },
+    {
+      "operation": "deriveAddress",
+      "opsPerSecond": 432914,
+      "upstreamOpsPerSecond": 248444,
+      "speedup": 1.74
+    },
+    {
+      "operation": "hashBlock",
+      "opsPerSecond": 66561,
+      "upstreamOpsPerSecond": 43068,
+      "speedup": 1.55
+    },
+    {
+      "operation": "signBlock",
+      "opsPerSecond": 485,
+      "upstreamOpsPerSecond": 489,
+      "speedup": 0.99
+    },
+    {
+      "operation": "verifyBlock",
+      "opsPerSecond": 491,
+      "upstreamOpsPerSecond": 490,
+      "speedup": 1
+    },
+    {
+      "operation": "WASM nonce attempts (including event-loop yields)",
+      "opsPerSecond": 4894464
+    }
+  ]
+}

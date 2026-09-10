@@ -1,19 +1,33 @@
 {
   "name": "nanopay",
-  "version": "0.0.1",
-  "description": "Nano cryptocurrency toolkit. Initial package setup; toolkit implementation follows in the next release.",
-  "main": "./index.js",
-  "types": "./index.d.ts",
+  "version": "0.1.0",
+  "description": "Nano cryptocurrency toolkit for keys, addresses, exact unit conversion, block signing and proof of work.",
+  "main": "./dist/index.cjs",
+  "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/types-cjs/index.d.ts",
+        "default": "./dist/index.cjs"
+      }
     },
+    "./browser": "./dist/nanopay.js",
     "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "index.d.ts"
+    "dist/",
+    "src/",
+    "scripts/build.mjs",
+    "tsconfig.json",
+    "NOTICE",
+    "CHANGELOG.md",
+    "native/",
+    "scripts/build-wasm.mjs",
+    "docs/"
   ],
   "engines": {
     "node": ">=22"
@@ -36,5 +50,45 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
-  }
+  },
+  "type": "module",
+  "module": "./dist/index.js",
+  "bin": {
+    "nanopay": "./dist/cli.js"
+  },
+  "sideEffects": [
+    "./dist/nanopay.js"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.js test/upstream/*.test.js",
+    "test:browser": "node --test test/browser/*.test.js",
+    "test:package": "node scripts/check-package.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm test && npm run test:browser && npm run format:check && npm run test:package",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "bench": "npm run build && node scripts/benchmark.mjs",
+    "release:bootstrap": "node scripts/publish-bootstrap.mjs"
+  },
+  "dependencies": {
+    "blakejs": "^1.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "esbuild": "^0.28.2",
+    "expect": "^30.5.1",
+    "@types/node": "^22.20.2",
+    "prettier": "^3.9.6",
+    "@playwright/test": "^1.63.0"
+  },
+  "contributors": [
+    {
+      "name": "Marvin ROGER",
+      "url": "https://github.com/marvinroger"
+    }
+  ]
 }

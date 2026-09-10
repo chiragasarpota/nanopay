@@ -1,0 +1,7 @@
+dist/
+node_modules/
+coverage/
+package-lock.json
+test/upstream/data/
+LICENSE
+native/blake2/
