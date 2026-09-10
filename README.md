@@ -86,6 +86,8 @@ Writes to the same account queue inside a client instance. Different accounts an
 
 `status: 'submitted'` means the node accepted the block. Use `waitForConfirmation` before treating it as settled. If submission fails, `TransactionError.transaction` retains the exact hash and signed block; inspect that hash before trying again. `ReceiveAllError.completed` preserves earlier successful submissions, and its `cause` identifies the failed step. Writes are never retried automatically.
 
+A submission failure blocks further writes to that account with `AccountBlockedError`, including already queued writes. After reconciling the failed transaction with the node, call `client.resumeAccount(address, transactionHash)` to allow new writes; rejected writes are never replayed. A missing hash alone does not prove the node stopped processing it.
+
 ## Full control, one step at a time
 
 ```js

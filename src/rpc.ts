@@ -71,8 +71,9 @@ export interface AccountHistory {
 export type BlockSubtype = 'send' | 'receive' | 'open' | 'change'
 export interface BlockInfo {
   account: string
-  amount: string
-  amountRaw: string
+  /** Absent when the node cannot calculate the amount because the predecessor was pruned. */
+  amount?: string
+  amountRaw?: string
   balance: string
   balanceRaw: string
   confirmed: boolean
@@ -345,17 +346,21 @@ export class NanoRpcClient {
   /** List up to count confirmed incoming blocks that have not been received (default: 100). */
   async getReceivable(
     account: string,
-    options: RequestOptions & { count?: number } = {},
+    options: RequestOptions & { count?: number; offset?: number } = {},
   ): Promise<Receivable[]> {
     requireAddress(account)
     const count = options.count ?? 100
     requireCount(count)
+    const offset = options.offset ?? 0
+    if (!Number.isSafeInteger(offset) || offset < 0)
+      throw new Error('Offset must be a non-negative safe integer')
     const action = 'receivable'
     const data = await this.request(
       action,
       {
         account,
         count: String(count),
+        ...(offset ? { offset: String(offset) } : {}),
         source: true,
         include_only_confirmed: true,
       },
@@ -439,7 +444,8 @@ export class NanoRpcClient {
     if (!checkHash(hash)) throw new Error('Hash is not valid')
     const action = 'block_info'
     const data = await this.request(action, { hash, json_block: true }, options)
-    const amountRaw = rawField(data.amount, action)
+    const amountRaw =
+      data.amount === undefined ? undefined : rawField(data.amount, action)
     const balanceRaw = rawField(data.balance, action)
     if (
       ![true, false, 'true', 'false'].includes(
@@ -449,8 +455,9 @@ export class NanoRpcClient {
       throw new NanoRpcError('Invalid RPC confirmation status', action)
     return {
       account: addressField(data.block_account, action),
-      amount: rawToNano(amountRaw),
-      amountRaw,
+      ...(amountRaw === undefined
+        ? {}
+        : { amount: rawToNano(amountRaw), amountRaw }),
       balance: rawToNano(balanceRaw),
       balanceRaw,
       confirmed: data.confirmed === true || data.confirmed === 'true',

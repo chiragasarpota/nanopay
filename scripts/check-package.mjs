@@ -4,17 +4,15 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, dirname } from 'node:path'
 import { createRequire } from 'node:module'
+import { runNpm } from './npm.mjs'
 
 const require = createRequire(import.meta.url)
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const temp = mkdtempSync(join(tmpdir(), 'nanopay-package-'))
 try {
   const [packed] = JSON.parse(
-    execFileSync(
-      npm,
-      ['pack', '--ignore-scripts', '--json', '--pack-destination', temp],
-      { encoding: 'utf8' },
-    ),
+    runNpm(['pack', '--ignore-scripts', '--json', '--pack-destination', temp], {
+      encoding: 'utf8',
+    }),
   )
   const files = packed.files.map((file) => file.path)
   for (const file of [
@@ -43,8 +41,7 @@ try {
   )
   assert.ok(files.every((file) => !/^(test|coverage)\//.test(file)))
   writeFileSync(join(temp, 'package.json'), '{"private":true,"type":"module"}')
-  execFileSync(
-    npm,
+  runNpm(
     [
       'install',
       join(temp, packed.filename),
@@ -90,6 +87,12 @@ try {
     )
     execFileSync(process.execPath, [subpathFile], { cwd: temp, stdio: 'pipe' })
   }
+  const identityTest = join(temp, 'entry-points.test.mjs')
+  writeFileSync(identityTest, readFileSync('test/entry-points.test.js', 'utf8'))
+  execFileSync(process.execPath, ['--test', identityTest], {
+    cwd: temp,
+    stdio: 'pipe',
+  })
   const ts = `import { accountFromSeed, nanoToRaw, createRpcClient, createSendBlock, type Account } from 'nanopay';\nconst wallet: Account = accountFromSeed('0'.repeat(64));\nconst amount: string = nanoToRaw('1.25');\ncreateRpcClient('https://node.example').getBalance(wallet.address).then(balance => balance.balanceRaw);\ncreateSendBlock({ privateKey: wallet.privateKey, representative: wallet.address, balanceRaw: amount, previous: '1'.repeat(64), to: wallet.address, amount: '1' });\n`
   const typedWorkflows = `
 import { createClient, createWallet, walletFromMnemonic, type Signer, buildSendBlock, signBlock, attachSignature, hashBlock, signHash } from 'nanopay';
@@ -101,6 +104,13 @@ const external: Signer = { publicKey: local.publicKey, sign: hash => signHash(ha
 const client = createClient({ rpcUrl: 'https://node.example', work: async ({ root, threshold, signal }) => { const work = await generateWork(root, { threshold, signal }); if (work === null) throw new Error('exhausted'); return work } });
 client.send({ account: external, to: local.address, amountRaw: '1' });
 client.receiveAll({ account: local, representative: local.address });
+client.resumeAccount(local.address, '1'.repeat(64));
+client.getBlock('1'.repeat(64)).then(block => {
+  const amount: string | undefined = block.amountRaw;
+  // @ts-expect-error: a pruned predecessor makes the amount unavailable.
+  const requiredAmount: string = block.amountRaw;
+});
+client.getReceivable(local.address, { count: 1000, offset: 1000 });
 client.prepareSend({ account: local.address, to: local.address, amount: '1' });
 walletFromMnemonic('example').then(wallet => wallet.account(1));
 // @ts-expect-error: amount and amountRaw are mutually exclusive.

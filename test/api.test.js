@@ -177,6 +177,52 @@ test('unsigned and signed builders agree with the inherited Nano protocol implem
   })
   assert.deepEqual(raw.block, signed)
 })
+test('signature verification enforces Nano scalar bits across signing and publishing APIs', async () => {
+  const unsigned = nano.buildSendBlock({
+    ...base,
+    to: account.address,
+    amountRaw: '1',
+  })
+  const signed = nano.signBlock(unsigned, account.privateKey)
+  const hash = nano.hashBlock(unsigned)
+  const order = (1n << 252n) + 27742317777372353535851937790883648493n
+  const scalar = BigInt(
+    '0x' +
+      Buffer.from(signed.signature.slice(64), 'hex').reverse().toString('hex'),
+  )
+  let requests = 0
+  const rpc = nano.createRpcClient('https://node.example', {
+    fetch: async () => {
+      requests++
+      throw new Error('Invalid signatures must not reach the node')
+    },
+  })
+  for (const multiple of [1n, 2n, 4n, 8n]) {
+    const s = Buffer.from(
+      (scalar + multiple * order).toString(16).padStart(64, '0'),
+      'hex',
+    ).reverse()
+    const signature = signed.signature.slice(0, 64) + s.toString('hex')
+    const params = { hash, signature, publicKey: account.publicKey }
+    // Nano permits S + L here, but rejects S + 2L and other upper-bit variants.
+    const accepted = multiple === 1n
+    assert.equal(Boolean(s[31] & 224), !accepted)
+    assert.equal(nano.verifyHash(params), accepted)
+    assert.equal(nano.verifyBlock({ ...signed, signature }), accepted)
+    assert.equal(legacy.verifyBlock(params), accepted)
+    if (!accepted) {
+      assert.throws(
+        () => nano.attachSignature(unsigned, signature),
+        /signature/,
+      )
+      await assert.rejects(
+        rpc.publishBlock({ ...signed, signature }, 'send'),
+        /signature/,
+      )
+    }
+  }
+  assert.equal(requests, 0)
+})
 test('builders reject amount ambiguity, impossible state transitions and uint128 overflow', () => {
   for (const invalid of [
     { amount: '0' },

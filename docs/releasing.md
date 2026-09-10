@@ -11,4 +11,6 @@ npm accepted authentication as chiragasarpota but rejected the initial publish w
 
 The original checked tarball is also retained locally at `.git/nanopay-releases/nanopay-0.0.1.tgz`. The release script works from a full clone without that local file; a shallow clone may need `git fetch --unshallow` first.
 
+Run the package-check and bootstrap scripts through `npm run`, which supplies the npm CLI path. They launch that JavaScript file through Node on every platform, including Windows, without invoking `npm.cmd` or interpreting arguments through a shell.
+
 The original publish failure was npm's waiting-period rule, not a repository or test failure. Publishing after the waiting period still requires npm to accept the package name and account permissions.

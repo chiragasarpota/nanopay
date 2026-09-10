@@ -883,6 +883,8 @@ function cryptoSignOpen(
 
   mlen = -1
   if (n < 64) return -1
+  // Match nano-node's Ed25519 verifier: the top three scalar bits must be zero.
+  if (sm[63] & 224) return -1
 
   if (unpackneg(q, pk)) return -1
 

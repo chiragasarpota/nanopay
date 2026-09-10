@@ -120,6 +120,20 @@ export class TransactionError extends Error {
     })
   }
 }
+/** This write was not started because an earlier submission still needs reconciliation. */
+export class AccountBlockedError extends Error {
+  override readonly name = 'AccountBlockedError'
+  readonly transaction: TransactionError['transaction']
+  constructor(cause: TransactionError) {
+    super(
+      'Account writes are blocked; reconcile transaction.hash before resuming',
+      {
+        cause,
+      },
+    )
+    this.transaction = cause.transaction
+  }
+}
 export class ReceiveAllError extends Error {
   override readonly name = 'ReceiveAllError'
   constructor(
@@ -169,11 +183,15 @@ function prepared(
     subtype,
   })
 }
+interface AccountQueue {
+  tail: Promise<void>
+  failure?: TransactionError
+}
 /** RPC reads and granular prepare/publish methods, plus serialized account transaction workflows. */
 export class NanoClient extends NanoRpcClient {
   private readonly representative?: string
   private readonly workProvider: WorkProvider
-  private readonly queues = new Map<string, Promise<void>>()
+  private readonly queues = new Map<string, AccountQueue>()
   constructor(options: ClientOptions) {
     super(options.rpcUrl, options)
     this.representative =
@@ -208,33 +226,69 @@ export class NanoClient extends NanoRpcClient {
   ): Promise<PreparedTransaction> {
     options = { ...options }
     const account = normalizeAddress(options.account)
-    const [info, source, receivable] = await Promise.all([
+    if (!checkHash(options.hash)) throw new Error('Hash is not valid')
+    const [info, incoming] = await Promise.all([
       this.getAccountInfo(account, options),
-      this.getBlock(options.hash, options),
-      this.isReceivable(options.hash, options),
+      this.receiveSource(account, options.hash.toUpperCase(), options),
     ])
-    const destination =
-      source.block.type === 'state'
-        ? source.block.link
-        : typeof source.block.destination === 'string'
-          ? publicKeyFromAddress(source.block.destination)
-          : undefined
-    if (
-      !receivable ||
-      !source.confirmed ||
-      (source.subtype !== 'send' && source.block.type !== 'send') ||
-      typeof destination !== 'string' ||
-      destination.toUpperCase() !== publicKeyFromAddress(account)
-    )
-      throw new Error(
-        'Source must be a confirmed, unreceived send to this account',
+    return this.prepareIncoming(account, info, incoming, options.representative)
+  }
+  private async receiveSource(
+    account: string,
+    hash: string,
+    options: RequestOptions,
+  ): Promise<Pick<Receivable, 'hash' | 'amountRaw'>> {
+    // Retained history gives a constant-size lookup, even for accounts with many receivables.
+    try {
+      const [source, receivable] = await Promise.all([
+        this.getBlock(hash, options),
+        this.isReceivable(hash, options),
+      ])
+      const destination =
+        source.block.type === 'state'
+          ? source.block.link
+          : typeof source.block.destination === 'string'
+            ? publicKeyFromAddress(source.block.destination)
+            : undefined
+      if (
+        !receivable ||
+        !source.confirmed ||
+        (source.subtype !== 'send' && source.block.type !== 'send') ||
+        typeof destination !== 'string' ||
+        destination.toUpperCase() !== publicKeyFromAddress(account)
       )
-    return this.prepareIncoming(
-      account,
-      info,
-      { hash: options.hash, amountRaw: source.amountRaw },
-      options.representative,
-    )
+        throw new Error(
+          'Source must be a confirmed, unreceived send to this account',
+        )
+      if (source.amountRaw !== undefined)
+        return { hash, amountRaw: source.amountRaw }
+    } catch (error) {
+      if (!(
+        error instanceof NanoRpcError &&
+        ['block_info', 'receivable_exists'].includes(error.action) &&
+        error.message === 'Block not found'
+      ))
+        throw error
+    }
+    // Pruning preserves confirmed receivable records, including ownership and amount.
+    // Page only on this fallback path so a large account cannot create one unbounded response.
+    const count = 1000
+    for (let offset = 0; ; offset += count) {
+      options.signal?.throwIfAborted()
+      const entries = await this.getReceivable(account, {
+        ...options,
+        count,
+        offset,
+      })
+      const incoming = entries.find(
+        (entry) => entry.hash.toUpperCase() === hash,
+      )
+      if (incoming) return incoming
+      if (entries.length < count)
+        throw new Error(
+          'Source must be a confirmed, unreceived send to this account',
+        )
+    }
   }
   async prepareChangeRepresentative(
     options: PrepareChangeOptions,
@@ -278,27 +332,55 @@ export class NanoClient extends NanoRpcClient {
       info ? 'receive' : 'open',
     )
   }
+  /**
+   * Allow new writes after the caller has reconciled this exact failed submission.
+   * This only clears the local block; it does not cancel or check the node request.
+   * Previously queued writes remain rejected and are never replayed.
+   */
+  resumeAccount(address: string, transactionHash: string): void {
+    address = normalizeAddress(address)
+    if (!checkHash(transactionHash)) throw new Error('Invalid transaction hash')
+    const queue = this.queues.get(address)
+    if (
+      !queue?.failure ||
+      queue.failure.transaction.hash !== transactionHash.toUpperCase()
+    )
+      throw new Error('No blocked transaction matches this account and hash')
+    this.queues.delete(address)
+  }
   private async serialize<T>(
     address: string,
     signal: AbortSignal | undefined,
     operation: () => Promise<T>,
   ): Promise<T> {
     signal?.throwIfAborted()
-    const previous = this.queues.get(address) ?? Promise.resolve()
+    const queue = this.queues.get(address) ?? { tail: Promise.resolve() }
+    const previous = queue.tail
     let release!: () => void
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
     const tail = previous.then(() => gate)
-    this.queues.set(address, tail)
+    queue.tail = tail
+    this.queues.set(address, queue)
     try {
       await abortable(previous, signal)
       signal?.throwIfAborted()
+      if (queue.failure) throw new AccountBlockedError(queue.failure)
       return await operation()
+    } catch (error) {
+      const cause = error instanceof ReceiveAllError ? error.cause : error
+      if (cause instanceof TransactionError) queue.failure = cause
+      throw error
     } finally {
       release()
       void tail.then(() => {
-        if (this.queues.get(address) === tail) this.queues.delete(address)
+        if (
+          !queue.failure &&
+          queue.tail === tail &&
+          this.queues.get(address) === queue
+        )
+          this.queues.delete(address)
       })
     }
   }

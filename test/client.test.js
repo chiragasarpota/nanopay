@@ -221,10 +221,156 @@ test('submission errors retain the exact signed transaction and never retry', as
   )
   assert.equal(calls.filter((c) => c.action === 'process').length, 1)
 })
+for (const failureMode of ['abort', 'timeout']) {
+  test(`${failureMode} during process blocks queued and future writes until explicit reconciliation`, async () => {
+    const controller = new AbortController()
+    let began
+    const entered = new Promise((resolve) => {
+      began = resolve
+    })
+    let finishProcessing
+    let frontier = sendFixture.previous
+    let accountReads = 0
+    const { client, calls } = node(
+      (body, init) => {
+        if (body.action === 'account_info') {
+          if (body.account === account.address && ++accountReads > 1) {
+            assert.notEqual(frontier, sendFixture.previous)
+            throw new Error('resumed read observed the reconciled frontier')
+          }
+          return snapshot(frontier)
+        }
+        if (body.action === 'work_generate') return { work: sendFixture.work }
+        if (body.action === 'process') {
+          if (body.block.account !== account.address) return processReply(body)
+          // The HTTP request can end while the node still owns the submitted block.
+          finishProcessing = () => {
+            frontier = n.hashBlock(body.block)
+          }
+          return new Promise((_resolve, reject) => {
+            init.signal.addEventListener(
+              'abort',
+              () => reject(init.signal.reason),
+              {
+                once: true,
+              },
+            )
+            began()
+          })
+        }
+        assert.fail(`Unexpected RPC: ${body.action}`)
+      },
+      { timeoutMs: failureMode === 'timeout' ? 40 : 15000 },
+    )
+    const firstFailure = client
+      .send({
+        account,
+        to: other.address,
+        amountRaw: '1',
+        signal: controller.signal,
+      })
+      .catch((error) => error)
+    await entered
+    const queued = Promise.allSettled([
+      client.send({ account, to: other.address, amountRaw: '2' }),
+      client.receive({ account, hash: incoming[0].hash }),
+      client.changeRepresentative({ account, representative: other.address }),
+      client.receiveAll({ account }),
+    ])
+    if (failureMode === 'abort') controller.abort()
+    const failure = await firstFailure
+    assert.ok(failure instanceof n.TransactionError)
+    assert.equal(
+      failure.cause.name,
+      failureMode === 'abort' ? 'AbortError' : 'TimeoutError',
+    )
+    for (const result of await queued) {
+      assert.equal(result.status, 'rejected')
+      assert.ok(result.reason instanceof n.AccountBlockedError)
+      assert.equal(result.reason.cause, failure)
+      assert.equal(result.reason.transaction.hash, failure.transaction.hash)
+    }
+    await assert.rejects(
+      client.send({ account, to: other.address, amountRaw: '3' }),
+      n.AccountBlockedError,
+    )
+    assert.equal(accountReads, 1)
+    assert.equal(calls.filter((call) => call.action === 'process').length, 1)
+    // Quarantining one account must not stop other accounts or independent reads.
+    await client.send({ account: other, to: account.address, amountRaw: '1' })
+    assert.ok(await client.getAccountInfo(other.address))
+    assert.throws(() => client.resumeAccount(account.address, 'bad'), /hash/)
+    assert.throws(
+      () => client.resumeAccount(account.address, 'F'.repeat(64)),
+      /matches/,
+    )
+    assert.throws(
+      () => client.resumeAccount(other.address, failure.transaction.hash),
+      /matches/,
+    )
+    finishProcessing()
+    client.resumeAccount(
+      account.address.replace('nano_', 'xrb_'),
+      failure.transaction.hash.toLowerCase(),
+    )
+    await assert.rejects(
+      client.send({ account, to: other.address, amountRaw: '3' }),
+      (error) =>
+        error.cause?.message ===
+        'resumed read observed the reconciled frontier',
+    )
+    assert.equal(accountReads, 2)
+    assert.equal(calls.filter((call) => call.action === 'process').length, 2)
+  })
+}
+test('resuming immediately after failure never replays writes already queued', async () => {
+  const { client, calls } = node((body) => {
+    if (body.action === 'account_info') return snapshot()
+    if (body.action === 'work_generate') return { work: sendFixture.work }
+    return new Response('', { status: 503 })
+  })
+  const failed = client
+    .send({ account, to: other.address, amountRaw: '1' })
+    .catch((error) => {
+      client.resumeAccount(account.address, error.transaction.hash)
+    })
+  const queued = Promise.allSettled(
+    Array.from({ length: 10 }, () =>
+      client.send({ account, to: other.address, amountRaw: '2' }),
+    ),
+  )
+  await failed
+  for (const result of await queued) {
+    assert.equal(result.status, 'rejected')
+    assert.ok(result.reason instanceof n.AccountBlockedError)
+  }
+  assert.equal(calls.filter((call) => call.action === 'process').length, 1)
+})
+test('failures before publication release the queue without blocking the account', async () => {
+  let workRequests = 0
+  const { client, calls } = node(
+    (body) =>
+      body.action === 'account_info' ? snapshot() : processReply(body),
+    {
+      work: () => {
+        if (++workRequests === 1) throw new Error('work provider unavailable')
+        return sendFixture.work
+      },
+    },
+  )
+  const first = assert.rejects(
+    client.send({ account, to: other.address, amountRaw: '1' }),
+    /work provider unavailable/,
+  )
+  const second = client.send({ account, to: other.address, amountRaw: '2' })
+  await first
+  assert.equal((await second).status, 'submitted')
+  assert.equal(calls.filter((call) => call.action === 'process').length, 1)
+})
 test('receive validates confirmed source ownership and requires a chosen opening representative', async () => {
   let destination = account.publicKey
   let confirmed = true
-  const { client } = node((body) => {
+  const { client, calls } = node((body) => {
     if (body.action === 'account_info') return { error: 'Account not found' }
     if (body.action === 'block_info') return blockInfo(confirmed, destination)
     if (body.action === 'receivable_exists') return { exists: '1' }
@@ -263,6 +409,186 @@ test('receive validates confirmed source ownership and requires a chosen opening
   assert.equal(result.subtype, 'open')
   assert.equal(result.hash, workFixtures[0].hash)
   assert.equal(result.block.balance, '10')
+  assert.equal(
+    calls.some((call) => call.action === 'receivable'),
+    false,
+  )
+})
+for (const pruned of ['source', 'predecessor']) {
+  test(`single receive works when the ${pruned} has been pruned`, async () => {
+    const { client, calls } = node((body) => {
+      if (body.action === 'account_info') return { error: 'Account not found' }
+      if (body.action === 'block_info') {
+        if (pruned === 'source') return { error: 'Block not found' }
+        const { amount, ...retained } = blockInfo()
+        return retained
+      }
+      if (body.action === 'receivable_exists')
+        return pruned === 'source'
+          ? { error: 'Block not found' }
+          : { exists: '1' }
+      if (body.action === 'receivable') {
+        assert.equal(body.account, account.address)
+        assert.equal(body.include_only_confirmed, true)
+        return {
+          blocks: {
+            [incoming[0].hash]: { amount: '10', source: other.address },
+          },
+        }
+      }
+      if (body.action === 'work_generate') return { work: workFixtures[0].work }
+      if (body.action === 'process') return processReply(body)
+      assert.fail(body.action)
+    })
+    const result = await client.receive({
+      account,
+      hash: incoming[0].hash,
+      representative: account.address,
+    })
+    assert.equal(result.status, 'submitted')
+    assert.equal(result.hash, workFixtures[0].hash)
+    assert.equal(result.block.balance, '10')
+    assert.ok(n.verifyBlock(result.block))
+    assert.equal(calls.filter((call) => call.action === 'process').length, 1)
+  })
+}
+test('pruned receives reject absent, foreign and unconfirmed entries without publishing', async () => {
+  for (const state of ['absent', 'foreign', 'unconfirmed']) {
+    const { client, calls } = node((body) => {
+      if (body.action === 'account_info') return { error: 'Account not found' }
+      if (body.action === 'block_info' || body.action === 'receivable_exists')
+        return { error: 'Block not found' }
+      if (body.action === 'receivable') {
+        const owner = state === 'foreign' ? other.address : account.address
+        const exists = state !== 'absent'
+        const confirmed = state !== 'unconfirmed'
+        assert.equal(body.include_only_confirmed, true)
+        return {
+          blocks:
+            exists && owner === body.account && confirmed
+              ? { [incoming[0].hash]: { amount: '10', source: other.address } }
+              : {},
+        }
+      }
+      assert.fail('Invalid receives must stop before work or publication')
+    })
+    await assert.rejects(
+      client.receive({
+        account,
+        hash: incoming[0].hash,
+        representative: account.address,
+      }),
+      /confirmed, unreceived send/,
+    )
+    assert.equal(
+      calls.some((call) => call.action === 'process'),
+      false,
+    )
+  }
+})
+test('pruned receive lookup searches beyond the first page and compares hashes case-insensitively', async () => {
+  const target = 'B'.repeat(64)
+  const page = Object.fromEntries(
+    Array.from({ length: 1000 }, (_, index) => [
+      (index + 1).toString(16).padStart(64, '0'),
+      { amount: '1', source: other.address },
+    ]),
+  )
+  const { client, calls } = node((body) => {
+    if (body.action === 'account_info') return { error: 'Account not found' }
+    if (body.action === 'block_info' || body.action === 'receivable_exists')
+      return { error: 'Block not found' }
+    if (body.action === 'receivable') {
+      assert.equal(body.count, '1000')
+      return {
+        blocks:
+          body.offset === '1000'
+            ? { [target]: { amount: '10', source: other.address } }
+            : page,
+      }
+    }
+    assert.fail(body.action)
+  })
+  const result = await client.prepareReceive({
+    account: account.address,
+    hash: target.toLowerCase(),
+    representative: account.address,
+  })
+  assert.equal(result.block.link, target)
+  assert.equal(result.block.balance, '10')
+  assert.deepEqual(
+    calls
+      .filter((call) => call.action === 'receivable')
+      .map((call) => call.offset ?? '0'),
+    ['0', '1000'],
+  )
+  await assert.rejects(
+    client.prepareReceive({
+      account: account.address,
+      hash: 'C'.repeat(64),
+      representative: account.address,
+    }),
+    /confirmed, unreceived send/,
+  )
+})
+test('pruned receive lookup propagates RPC failures and cancellation', async () => {
+  for (const failure of ['permission', 'malformed', 'abort']) {
+    const controller = new AbortController()
+    const { client, calls } = node((body, init) => {
+      if (body.action === 'account_info') return { error: 'Account not found' }
+      if (body.action === 'block_info')
+        return failure === 'permission'
+          ? { error: 'Access denied' }
+          : { error: 'Block not found' }
+      if (body.action === 'receivable_exists') return { exists: '1' }
+      if (body.action === 'receivable') {
+        if (failure === 'malformed')
+          return {
+            blocks: {
+              [incoming[0].hash]: { amount: null, source: other.address },
+            },
+          }
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener(
+            'abort',
+            () => reject(init.signal.reason),
+            { once: true },
+          )
+          controller.abort()
+        })
+      }
+      assert.fail(body.action)
+    })
+    await assert.rejects(
+      client.prepareReceive({
+        account: account.address,
+        hash: incoming[0].hash,
+        representative: account.address,
+        signal: controller.signal,
+      }),
+      failure === 'abort' ? { name: 'AbortError' } : n.NanoRpcError,
+    )
+    if (failure === 'permission')
+      assert.equal(
+        calls.some((call) => call.action === 'receivable'),
+        false,
+      )
+  }
+})
+test('confirmation polling accepts retained blocks with unavailable amounts', async () => {
+  let reads = 0
+  const { client } = node(() => {
+    const { amount, ...block } = blockInfo(++reads > 1)
+    return block
+  })
+  const block = await client.waitForConfirmation(incoming[0].hash, {
+    pollIntervalMs: 1,
+  })
+  assert.equal(reads, 2)
+  assert.equal(block.confirmed, true)
+  assert.equal(block.amount, undefined)
+  assert.equal(block.amountRaw, undefined)
+  assert.equal(block.balanceRaw, '90')
 })
 function receiving(failAt) {
   let submissions = 0
@@ -315,7 +641,16 @@ test('receiveAll chains real signed blocks, bounds the snapshot and reuses accou
 })
 test('receiveAll exposes completed blocks and an uncertain failed block without automatic retry', async () => {
   const { client, calls } = receiving(2)
-  await assert.rejects(client.receiveAll({ account }), (error) => {
+  const batch = client.receiveAll({ account })
+  const queued = assert.rejects(
+    client.send({ account, to: other.address, amountRaw: '1' }),
+    (error) => {
+      assert.ok(error instanceof n.AccountBlockedError)
+      assert.equal(error.transaction.hash, workFixtures[1].hash)
+      return true
+    },
+  )
+  await assert.rejects(batch, (error) => {
     assert.ok(error instanceof n.ReceiveAllError)
     assert.equal(error.completed.transactions.length, 1)
     assert.equal(error.completed.amountRaw, '10')
@@ -323,6 +658,7 @@ test('receiveAll exposes completed blocks and an uncertain failed block without 
     assert.equal(error.cause.transaction.hash, workFixtures[1].hash)
     return true
   })
+  await queued
   assert.equal(calls.filter((c) => c.action === 'process').length, 2)
 })
 test('representative changes preserve balance and use send difficulty', async () => {

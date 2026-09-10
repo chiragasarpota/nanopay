@@ -100,6 +100,7 @@ export {
   NanoClient,
   createSigner,
   TransactionError,
+  AccountBlockedError,
   ReceiveAllError,
   type Signer,
   type SigningAccount,

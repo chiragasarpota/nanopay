@@ -27,6 +27,19 @@ const options = {
     js: `/*! nanopay ${pkg.version}, GPL-3.0-only. Derived from nanocurrency-js; see LICENSE and NOTICE. */`,
   },
 }
+// Root and legacy consumers must use the same client/error constructors as /rpc.
+// Reusing that entry point also works in CommonJS, where esbuild cannot split chunks.
+function sharedRpc(format) {
+  return {
+    name: 'shared-rpc',
+    setup(build) {
+      build.onResolve({ filter: /^\.\/(rpc|client)\.js$/ }, () => ({
+        path: format === 'esm' ? './rpc.js' : './rpc.cjs',
+        external: true,
+      }))
+    },
+  }
+}
 await Promise.all([
   ...Object.entries({
     keys: 'key-api',
@@ -57,6 +70,7 @@ await Promise.all([
       platform: format === 'cjs' ? 'node' : 'neutral',
       format,
       external: ['blakejs'],
+      plugins: [sharedRpc(format)],
       outfile: 'dist/legacy.' + (format === 'esm' ? 'js' : 'cjs'),
     }),
   ),
@@ -65,6 +79,7 @@ await Promise.all([
     platform: 'neutral',
     format: 'esm',
     external: ['blakejs'],
+    plugins: [sharedRpc('esm')],
     outfile: 'dist/index.js',
   }),
   build({
@@ -72,6 +87,7 @@ await Promise.all([
     platform: 'node',
     format: 'cjs',
     external: ['blakejs'],
+    plugins: [sharedRpc('cjs')],
     outfile: 'dist/index.cjs',
   }),
   build({

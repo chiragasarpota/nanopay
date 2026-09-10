@@ -124,6 +124,15 @@ test('history preserves pagination without rounding amounts', async () => {
     entries: [],
   })
 })
+test('receivable pagination forwards a validated offset', async () => {
+  const { client, calls } = mock({ blocks: {} })
+  await client.getReceivable(address, { count: 1000, offset: 1000 })
+  assert.equal(calls[0].body.offset, '1000')
+  assert.equal(calls[0].body.count, '1000')
+  for (const offset of [-1, 1.5, NaN, Number.MAX_SAFE_INTEGER + 1])
+    await assert.rejects(client.getReceivable(address, { offset }), /Offset/)
+  assert.equal(calls.length, 1)
+})
 test('block info explicitly converts string confirmation status', async () => {
   const data = {
     block_account: address,
@@ -142,6 +151,27 @@ test('block info explicitly converts string confirmation status', async () => {
     mock({ ...data, confirmed: 'unknown' }).client.getBlock(hash),
     /confirmation/,
   )
+})
+test('block info distinguishes unavailable amounts from zero and malformed values', async () => {
+  const data = {
+    block_account: address,
+    balance: '3',
+    confirmed: 'true',
+    contents: { type: 'state', previous: '1'.repeat(64) },
+  }
+  const block = await mock(data).client.getBlock(hash)
+  assert.equal(block.confirmed, true)
+  assert.equal(block.balanceRaw, '3')
+  assert.equal(Object.hasOwn(block, 'amount'), false)
+  assert.equal(Object.hasOwn(block, 'amountRaw'), false)
+  const zero = await mock({ ...data, amount: '0' }).client.getBlock(hash)
+  assert.equal(zero.amount, '0')
+  assert.equal(zero.amountRaw, '0')
+  for (const amount of [null, 0, '-1', 'NaN'])
+    await assert.rejects(
+      mock({ ...data, amount }).client.getBlock(hash),
+      nano.NanoRpcError,
+    )
 })
 test('RPC work is independently validated before being returned', async () => {
   const { client, calls } = mock({ work: '0000000000010600' })

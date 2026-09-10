@@ -8,6 +8,10 @@ First toolkit implementation, based on nanocurrency-js commit `5a0d9957c50f00a84
 - Added English BIP39 mnemonics, explicit entropy/seed conversion and Nano SLIP-0010 derivation, checked against official vectors.
 - Separated unsigned block construction, hash signing, block signing, external signature attachment, work generation and publication. Preserved upstream signatures under nanopay/legacy.
 - Added send/receive/receiveAll/changeRepresentative workflows, external signer and work hooks, per-account serialization, partial failure recovery, and confirmation polling.
+- Blocked queued and future account writes after failed submissions until explicit reconciliation and resumption; added `AccountBlockedError` and `resumeAccount`.
+- Matched Nano's signature scalar-bit validation and preserved client/error class identities across root, RPC, and legacy entry points in both ESM and CommonJS.
+- Supported unavailable block amounts and confirmation polling on pruned nodes; added paged receivable fallback for single receives whose history has been pruned.
+- Invoked npm's JavaScript CLI directly for package checks and bootstrap publishing, with argument-preservation tests and Windows CI coverage.
 - Added batch balances, payment URIs, bounded WebSocket confirmation streams, focused package imports and a complete API reference.
 - Added an explicit-endpoint RPC client following the official Nano documentation, with confirmed balance reads, receivable/history queries, block info, verified work generation, and locally checked publishing with explicit subtypes.
 - Replaced decimal-library loops with exact string conversion and native bigint bounds; removed bignumber.js.
