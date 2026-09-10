@@ -33,6 +33,17 @@ jobs:
       - run: npm test
       - run: npm run test:package
       - run: npm run release:bootstrap -- --dry-run
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:integration
   wasm-source:
     runs-on: ubuntu-latest
     steps:

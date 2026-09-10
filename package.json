@@ -155,6 +155,7 @@
     "test": "npm run build && node --test test/*.test.js test/upstream/*.test.js",
     "test:browser": "node --test test/browser/*.test.js",
     "test:package": "node scripts/check-package.mjs",
+    "test:integration": "npm run build && node scripts/test-integration.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm test && npm run test:browser && npm run format:check && npm run test:package",
