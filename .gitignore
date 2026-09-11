@@ -6,5 +6,6 @@ coverage/
 .env
 .env.*
 .build/
+.wrangler/
 playwright-report/
 test-results/

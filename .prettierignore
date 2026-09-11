@@ -1,7 +1,9 @@
 dist/
 node_modules/
 coverage/
-package-lock.json
+**/package-lock.json
+.build/
+.wrangler/
 test/upstream/data/
 LICENSE
 native/blake2/

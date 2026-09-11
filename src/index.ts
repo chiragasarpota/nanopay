@@ -83,7 +83,12 @@ export {
   RECEIVE_WORK_THRESHOLD,
   LEGACY_WORK_THRESHOLD,
 } from './work.js'
-export { createRpcClient, NanoRpcClient, NanoRpcError } from './rpc.js'
+export {
+  createRpcClient,
+  NanoRpcClient,
+  NanoRpcError,
+  DEFAULT_RPC_URL,
+} from './rpc.js'
 export type {
   RpcClientOptions,
   RequestOptions,

@@ -6,6 +6,8 @@ Use the client for complete workflows. Use the exported functions when you want 
 
 [Complete API reference](docs/api.md) · [Runtime support](docs/runtimes.md) · [Performance](docs/performance.md) · [Release status](docs/releasing.md)
 
+Version `0.2.0` uses BerryPay's public Nano mainnet RPC when you call `createClient()` or `createRpcClient()` without a URL. `0.1.0` requires an explicit URL. See the [documentation](https://docs.nanopay.me), [node configuration](docs/guides/node-configuration.md) and [deployment guide](docs/deployment.md).
+
 ## Install
 
 ```sh
@@ -77,6 +79,8 @@ await client.changeRepresentative({
 ```
 
 The client reads account state, builds a block, signs locally, requests work, verifies it, and submits once. Choose a representative for the first receive; existing accounts keep theirs unless you supply another. `receive({ account, hash })` receives one confirmed incoming send. `receiveAll` processes a bounded snapshot and reports `hasMore` when that snapshot contains additional blocks.
+
+In `0.2.0`, use `createClient()` for BerryPay or pass `rpcUrl` as above to use your own node. BerryPay receives the RPC queries and signed blocks you send to it; local account creation and signing do not make network requests. The public service can apply rate limits and action restrictions.
 
 Writes to the same account queue inside a client instance. Different accounts and independent reads run concurrently. Coordinate writers yourself when using multiple clients, processes, devices, or the granular prepare/publish methods.
 
@@ -203,4 +207,4 @@ npm run bench
 
 Checks cover protocol vectors, workflows, browser/Worker execution, formatting, and installation into a clean npm project. Install a browser with `npx playwright install chromium` if Chrome is unavailable. `npm run build:wasm` rebuilds the checked-in binary with LLVM clang and wasm-ld; ordinary builds use the existing binary.
 
-GPL-3.0-only. Based on [nanocurrency-js](https://github.com/marvinroger/nanocurrency-js) by Marvin ROGER. Source, build scripts, original notices, and bundled dependency licenses ship with the package. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [CHANGELOG](CHANGELOG.md).
+GPL-3.0-only. Based on [nanocurrency-js](https://github.com/marvinroger/nanocurrency-js). Source, build scripts, original notices, and bundled dependency licenses ship with the package. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [CHANGELOG](CHANGELOG.md).

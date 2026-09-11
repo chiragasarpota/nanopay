@@ -105,9 +105,11 @@ Available through `nanopay/work`.
 
 ## RPC and transaction clients
 
-`createRpcClient(url, options?)` returns `NanoRpcClient`. `createClient({ rpcUrl, ...options })` returns `NanoClient`, which extends it with transaction workflows. Both classes can also be constructed directly. Focused import: `nanopay/rpc`.
+`createRpcClient(url?, options?)` returns `NanoRpcClient`. `createClient(options?)` returns `NanoClient`, which extends it with transaction workflows; `options.rpcUrl` is optional. Both classes can also be constructed directly without arguments. Focused import: `nanopay/rpc`.
 
-Common options: `timeoutMs` (default 15000), `headers`, and custom `fetch`. NanoClient also takes `representative` (opening-account default) and `work` (custom provider). No third-party endpoint is selected implicitly.
+Starting in **0.2.0**, omitting the RPC URL selects `DEFAULT_RPC_URL`, exported from `nanopay` and `nanopay/rpc`: `https://xno-rpc.berrypay.org/proxy` (BerryPay, Nano mainnet). Supply an explicit URL for your own node. Invalid explicit URLs are rejected, never replaced with the default. Version 0.1.0 requires a URL.
+
+Common options: `timeoutMs` (default 15000), `headers`, and custom `fetch`. NanoClient also takes `representative` (opening-account default) and `work` (custom provider). Constructing a client makes no requests; network operations contact the selected provider. BerryPay can see requests and signed blocks and applies its own availability, rate limits and action policy. [Node configuration](guides/node-configuration.md) covers overrides and WebSockets.
 
 All async methods accept `signal` in their options. Each request has its own timeout and cancellation state. Response validation errors, HTTP failures, and node errors use `NanoRpcError`, with `action`, optional HTTP `status`, and optional `cause`. Aborts/timeouts retain the signal's reason.
 

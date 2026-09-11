@@ -5,7 +5,7 @@
  * Modified for nanopay by chiragasarpota, 2026-09-10. See CHANGELOG.md.
  */
 // originally from https://github.com/dchest/tweetnacl-js
-// adapted for Nano and TypeScript by Marvin ROGER
+// adapted for Nano and TypeScript
 import blake from 'blakejs'
 
 const gf = function (init?: number[]): Float64Array {

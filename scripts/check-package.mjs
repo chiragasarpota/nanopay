@@ -40,6 +40,7 @@ try {
     ),
   )
   assert.ok(files.every((file) => !/^(test|coverage)\//.test(file)))
+  assert.ok(files.every((file) => !/^(site|\.build|docs\/public)\//.test(file)))
   writeFileSync(join(temp, 'package.json'), '{"private":true,"type":"module"}')
   runNpm(
     [
@@ -96,6 +97,13 @@ try {
   const ts = `import { accountFromSeed, nanoToRaw, createRpcClient, createSendBlock, type Account } from 'nanopay';\nconst wallet: Account = accountFromSeed('0'.repeat(64));\nconst amount: string = nanoToRaw('1.25');\ncreateRpcClient('https://node.example').getBalance(wallet.address).then(balance => balance.balanceRaw);\ncreateSendBlock({ privateKey: wallet.privateKey, representative: wallet.address, balanceRaw: amount, previous: '1'.repeat(64), to: wallet.address, amount: '1' });\n`
   const typedWorkflows = `
 import { createClient, createWallet, walletFromMnemonic, type Signer, buildSendBlock, signBlock, attachSignature, hashBlock, signHash } from 'nanopay';
+import { createRpcClient as defaultRpc, NanoClient, NanoRpcClient, DEFAULT_RPC_URL } from 'nanopay/rpc';
+createClient();
+defaultRpc();
+new NanoClient();
+new NanoRpcClient();
+defaultRpc(undefined, { timeoutMs: 1000 });
+const endpoint: string = DEFAULT_RPC_URL;
 import { derivePrivateKey } from 'nanopay/keys';
 import { generateWork } from 'nanopay/work';
 import { createClient as focusedClient } from 'nanopay/rpc';

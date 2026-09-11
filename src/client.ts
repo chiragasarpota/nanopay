@@ -47,7 +47,8 @@ export interface WorkRequest {
 }
 export type WorkProvider = (request: WorkRequest) => string | Promise<string>
 export interface ClientOptions extends RpcClientOptions {
-  rpcUrl: string
+  /** Defaults to BerryPay's public Nano mainnet RPC (DEFAULT_RPC_URL). */
+  rpcUrl?: string
   /** Used only for the first receive when no representative is supplied. */
   representative?: string
   /** Defaults to RPC work_generate. Replace with local WASM, a GPU or your work service. */
@@ -192,7 +193,7 @@ export class NanoClient extends NanoRpcClient {
   private readonly representative?: string
   private readonly workProvider: WorkProvider
   private readonly queues = new Map<string, AccountQueue>()
-  constructor(options: ClientOptions) {
+  constructor(options: ClientOptions = {}) {
     super(options.rpcUrl, options)
     this.representative =
       options.representative === undefined
@@ -552,6 +553,6 @@ export class NanoClient extends NanoRpcClient {
     }
   }
 }
-export function createClient(options: ClientOptions): NanoClient {
+export function createClient(options: ClientOptions = {}): NanoClient {
   return new NanoClient(options)
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-09-12
+
+- Default `createClient()`, `new NanoClient()`, `createRpcClient()` and `new NanoRpcClient()` to BerryPay's public Nano mainnet RPC when the URL is omitted. Export `DEFAULT_RPC_URL`; explicit URLs still select your own node and invalid URLs still fail validation.
+- Add a searchable documentation site with TypeScript guides, a complete API reference, provider configuration, transaction recovery and deployment instructions.
+- Add a separate docs build, CI checks and Cloudflare Workers deployment with Wrangler. Site tooling and built assets are excluded from the npm package.
+
 ## 0.1.0 — 2026-09-11
 
 First toolkit implementation, based on nanocurrency-js commit `5a0d9957c50f00a848476b20efc9e06335ba5209`. Modified by chiragasarpota on 2026-09-10.

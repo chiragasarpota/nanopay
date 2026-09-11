@@ -17,6 +17,9 @@ import {
 } from './work.js'
 import type { BlockRepresentation } from './block.js'
 
+/** BerryPay's public Nano mainnet RPC. Override the URL to use your own node. */
+export const DEFAULT_RPC_URL = 'https://xno-rpc.berrypay.org/proxy'
+
 export interface RequestOptions {
   signal?: AbortSignal
 }
@@ -143,7 +146,7 @@ export class NanoRpcClient {
   private readonly headers: Headers
   private readonly fetch: typeof globalThis.fetch
 
-  constructor(url: string, options: RpcClientOptions = {}) {
+  constructor(url: string = DEFAULT_RPC_URL, options: RpcClientOptions = {}) {
     const parsed = new URL(url)
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
       throw new Error('RPC URL must use HTTP or HTTPS')
@@ -538,9 +541,9 @@ export class NanoRpcClient {
   }
 }
 
-/** Connect to your chosen Nano node. No global initialization or default third-party endpoint. */
+/** Connect to BerryPay mainnet by default, or supply your own Nano RPC URL. */
 export function createRpcClient(
-  url: string,
+  url: string = DEFAULT_RPC_URL,
   options: RpcClientOptions = {},
 ): NanoRpcClient {
   return new NanoRpcClient(url, options)

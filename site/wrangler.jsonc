@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "nanopay-docs",
+  "account_id": "4570c2c9f949f23f6857197043658e76",
+  "compatibility_date": "2026-09-11",
+  "workers_dev": true,
+  "preview_urls": false,
+  "build": {
+    "command": "npm run build:production",
+  },
+  "assets": {
+    "directory": "../.build/docs",
+    "html_handling": "none",
+    "not_found_handling": "404-page",
+  },
+  "routes": [{ "pattern": "docs.nanopay.me", "custom_domain": true }],
+}

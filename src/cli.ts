@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * CLI derived from nanocurrency-cli by Marvin ROGER (GPL-3.0).
+ * CLI derived from nanocurrency-cli (GPL-3.0).
  * Reimplemented for nanopay by chiragasarpota, 2026-09-10.
  */
 import { parseArgs } from 'node:util'

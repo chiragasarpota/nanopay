@@ -10,7 +10,7 @@
 | Deno, Bun, edge/serverless runtimes | Expected to work where npm compatibility, native fetch, Web Crypto, BigInt and WebAssembly compilation are available. These runtimes are not currently tested in CI. Some edge platforms restrict dynamic WASM compilation or runtime CPU time; use RPC work there. |
 | React Native                        | Requires compatible cryptographic randomness, Web Crypto for mnemonic PBKDF2, and fetch. Local work additionally requires WebAssembly support. Not tested; no React Native polyfills or native module are bundled.                                                  |
 
-Cryptographic and account functions run offline. RPC workflows need your Nano node or an explicitly chosen endpoint. Live notifications additionally need the node's WebSocket service and a browser-compatible WebSocket implementation; supply a factory if your runtime lacks one.
+Cryptographic and account functions run offline. Starting in 0.2.0, RPC workflows use BerryPay's public Nano mainnet endpoint by default; supply your own URL to override it. In 0.1.0 the URL is required. Live notifications still take an explicit WebSocket URL and need a browser-compatible WebSocket implementation; supply a factory if your runtime lacks one. See [node configuration](guides/node-configuration.md) for BerryPay's URLs and account-filter requirement.
 
 Focused `nanopay/keys`, `/amounts`, `/blocks`, `/rpc`, `/payments` and `/confirmations` imports do not include the local work engine. Mnemonic dependencies and the English word list live in `/mnemonic` and the full main bundle. Only import `/work` where local WASM execution is supported.
 

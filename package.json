@@ -1,6 +1,6 @@
 {
   "name": "nanopay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Nano toolkit with granular cryptography, mnemonic wallets, block building, proof of work, RPC and payment workflows.",
   "main": "./dist/index.cjs",
   "types": "./dist/types/index.d.ts",
@@ -117,7 +117,8 @@
     "CHANGELOG.md",
     "native/",
     "scripts/build-wasm.mjs",
-    "docs/"
+    "docs/**/*.md",
+    "docs/benchmark-results.json"
   ],
   "engines": {
     "node": ">=22"
@@ -131,7 +132,7 @@
   "bugs": {
     "url": "https://github.com/chiragasarpota/nanopay/issues"
   },
-  "homepage": "https://github.com/chiragasarpota/nanopay#readme",
+  "homepage": "https://docs.nanopay.me",
   "keywords": [
     "nano",
     "cryptocurrency",
@@ -163,7 +164,12 @@
     "prepublishOnly": "npm run check",
     "build:wasm": "node scripts/build-wasm.mjs",
     "bench": "npm run build && node scripts/benchmark.mjs",
-    "release:bootstrap": "node scripts/publish-bootstrap.mjs"
+    "release:bootstrap": "node scripts/publish-bootstrap.mjs",
+    "docs:dev": "npm --prefix site run dev --",
+    "docs:build": "npm --prefix site run build --",
+    "docs:preview": "npm --prefix site run preview --",
+    "docs:deploy": "npm --prefix site run deploy",
+    "docs:check": "npm run build && node scripts/check-doc-examples.mjs && node --test scripts/docs-server.test.mjs && npm run docs:build && node scripts/check-docs.mjs"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
