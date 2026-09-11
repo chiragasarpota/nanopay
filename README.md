@@ -4,19 +4,15 @@ Nano for JavaScript and TypeScript: create or recover accounts, send and receive
 
 Use the client for complete workflows. Use the exported functions when you want control over each step. Both use the same Nano cryptography and block builders.
 
-**Publication pending:** this checkout contains the unreleased `0.1.0` toolkit. npm's name-reuse cooldown currently prevents publication. The separately prepared `0.0.1` bootstrap contains version metadata only.
-
 [Complete API reference](docs/api.md) · [Runtime support](docs/runtimes.md) · [Performance](docs/performance.md) · [Release status](docs/releasing.md)
 
 ## Install
-
-After publication:
 
 ```sh
 npm install nanopay
 ```
 
-To run this checkout now, use `npm ci && npm run build` and import from `./dist/index.js`. Node.js 22+, ESM, CommonJS, TypeScript and modern browsers are supported. A browser script bundle exposes `NanoPay`.
+To develop from source, use `npm ci && npm run build` and import from `./dist/index.js`. Node.js 22+, ESM, CommonJS, TypeScript and modern browsers are supported. A browser script bundle exposes `NanoPay`.
 
 ## Create or recover accounts
 

@@ -1,16 +1,18 @@
-# Publishing the first releases
+# Publishing releases
 
-The GitHub repository has been reset. The fresh root commit `e059de2264777282a3f22632c1ad78fa3a354ad8` contains the minimal `nanopay@0.0.1` package; the current source is the `0.1.0` toolkit.
+The `0.0.1` bootstrap was published on September 11, 2026 under chiragasarpota. It contains version metadata only, reconstructed from root commit `e059de2264777282a3f22632c1ad78fa3a354ad8`. The `0.1.0` release introduces the Nano toolkit from the current repository sources.
 
-npm accepted authentication as chiragasarpota but rejected the initial publish with: `nanopay cannot be republished until 24 hours have passed.` The package was unpublished at 2026-09-10 00:39:34 UTC. The earliest retry is **2026-09-11 00:39:35 UTC**, or **04:39:35 in Dubai**. Neither release has been published yet.
+Publish from the intended release commit after updating the package version and changelog. Confirm GitHub CI is green, including Windows and the real Nano dev-node integration job. Mainnet tests use dedicated funds and are run separately as described in [testing](testing.md); never replay a completed or partially completed funded test blindly.
 
-1. After that time, run `npm run release:bootstrap`. This reconstructs the exact initial package from the root commit and checks that the npm user is chiragasarpota. Complete npm's browser authentication if prompted. Use `npm run release:bootstrap -- --dry-run` to inspect without publishing.
-2. Verify with `npm view nanopay@0.0.1 version maintainers --json`.
-3. Update the README release-status paragraph and CHANGELOG to reflect the successful bootstrap and the upcoming 0.1.0 release. Run `npm run check`, commit, and push.
-4. Run `npm publish --access public`. The prepublish hook runs the full checks. Verify with `npm view nanopay version maintainers --json`.
+1. Check `npm whoami --registry=https://registry.npmjs.org/`. Publishing uses the chiragasarpota account. Run `npm login --auth-type=web` if the saved login has expired.
+2. Run `npm run check` to validate types, tests, browser/worker behavior, formatting and the installed package.
+3. Run `npm publish --access public`. The prepublish hook also runs the full checks. Complete npm's separate publish authentication if prompted.
+4. Verify the version, maintainer, dist-tag and tarball integrity with `npm view nanopay version maintainers dist-tags dist --json`, then test an installation from the registry in a fresh directory.
 
-The original checked tarball is also retained locally at `.git/nanopay-releases/nanopay-0.0.1.tgz`. The release script works from a full clone without that local file; a shallow clone may need `git fetch --unshallow` first.
+Check registry state before retrying a publish whose outcome is uncertain. Published versions cannot be overwritten.
+
+The original checked bootstrap tarball is retained locally at `.git/nanopay-releases/nanopay-0.0.1.tgz`. `npm run release:bootstrap -- --dry-run` reconstructs it for inspection from a full clone without requiring that local file; a shallow clone may need `git fetch --unshallow` first. The bootstrap is already published, so do not publish that version again.
 
 Run the package-check and bootstrap scripts through `npm run`, which supplies the npm CLI path. They launch that JavaScript file through Node on every platform, including Windows, without invoking `npm.cmd` or interpreting arguments through a shell.
 
-The original publish failure was npm's waiting-period rule, not a repository or test failure. Publishing after the waiting period still requires npm to accept the package name and account permissions.
+The initial attempt on September 10 was delayed by npm's package-name reuse waiting period. That waiting period was resolved before the bootstrap publication.
