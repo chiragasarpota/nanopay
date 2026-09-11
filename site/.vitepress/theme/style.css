@@ -53,6 +53,22 @@ body {
 .nanopay-home .VPNavBarSearch {
   display: none;
 }
+.nanopay-home .VPNavBarTitle .title {
+  font-size: 24px;
+}
+.nanopay-home .VPNavBarMenuLink {
+  font-size: 16px;
+}
+.nanopay-home .VPFooter .message {
+  font-size: 16px;
+}
+.nanopay-home .VPNavBar .divider-line {
+  /* Keep the landing header divider visible in VitePress's top state too. */
+  background-color: rgb(0 0 0 / 14%) !important;
+}
+.dark .nanopay-home .VPNavBar .divider-line {
+  background-color: rgb(255 255 255 / 20%) !important;
+}
 @media (min-width: 1024px) {
   .nanopay-home .VPNavBar {
     /* Match the centered landing frame, its gutter, and the hero inset. */
